@@ -1,7 +1,7 @@
+import DeepseekProvider from './providers/deepseek';
 import AnthropicProvider from './providers/anthropic';
 import CerebrasProvider from './providers/cerebras';
 import CohereProvider from './providers/cohere';
-import DeepseekProvider from './providers/deepseek';
 import FireworksProvider from './providers/fireworks';
 import GoogleProvider from './providers/google';
 import GroqProvider from './providers/groq';
@@ -22,10 +22,10 @@ import MoonshotProvider from './providers/moonshot';
 import ZaiProvider from './providers/z-ai';
 
 export {
+  DeepseekProvider,
   AnthropicProvider,
   CerebrasProvider,
   CohereProvider,
-  DeepseekProvider,
   FireworksProvider,
   GoogleProvider,
   GroqProvider,
