@@ -4,6 +4,7 @@ import { useChat } from '@ai-sdk/react';
 import { useAnimate } from 'framer-motion';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
+import { detectConstraints } from '~/lib/speclock/detector';
 import { useMessageParser, usePromptEnhancer, useShortcuts } from '~/lib/hooks';
 import { description, useChatHistory } from '~/lib/persistence';
 import { chatStore } from '~/lib/stores/chat';
@@ -391,6 +392,18 @@ export const ChatImpl = memo(
 
       if (!messageContent?.trim()) {
         return;
+      }
+
+      // SpecLock constraint check
+      const speclockResult = detectConstraints(messageContent);
+
+      if (speclockResult.category === 'blocked') {
+        toast.error(`SpecLock: ${speclockResult.warnings[0]}`);
+        return;
+      }
+
+      if (speclockResult.category === 'caution') {
+        toast.warn(`SpecLock: ${speclockResult.warnings.join(', ')}`);
       }
 
       if (isLoading) {
