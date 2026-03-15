@@ -36,20 +36,6 @@ FROM build AS prod-deps
 RUN pnpm prune --prod --ignore-scripts
 
 
-# ---- development stage ----
-FROM build AS development
-
-ARG VITE_LOG_LEVEL=debug
-ARG DEFAULT_NUM_CTX
-
-ENV VITE_LOG_LEVEL=${VITE_LOG_LEVEL} \
-    DEFAULT_NUM_CTX=${DEFAULT_NUM_CTX} \
-    RUNNING_IN_DOCKER=true
-
-RUN mkdir -p /app/run
-CMD ["pnpm", "run", "dev", "--host"]
-
-
 # ---- production stage (MUST be last for Railway) ----
 FROM prod-deps AS bolt-ai-production
 WORKDIR /app
