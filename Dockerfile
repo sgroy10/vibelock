@@ -67,7 +67,7 @@ RUN chmod +x /app/bindings.sh
 
 EXPOSE 5173
 
-HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=5 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=5 \
   CMD curl -fsS http://localhost:5173/ || exit 1
 
 CMD ["pnpm", "run", "dockerstart"]

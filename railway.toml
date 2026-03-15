@@ -4,6 +4,6 @@ dockerTarget = "bolt-ai-production"
 
 [deploy]
 healthcheckPath = "/"
-healthcheckTimeout = 60
+healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
