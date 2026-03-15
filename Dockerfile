@@ -44,14 +44,19 @@ ENV NODE_ENV=production
 ENV PORT=5173
 ENV HOST=0.0.0.0
 ENV RUNNING_IN_DOCKER=true
-
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
-  && rm -rf /var/lib/apt/lists/*
+ENV WRANGLER_SEND_METRICS=false
+ENV WRANGLER_LOG=error
 
 COPY --from=prod-deps /app/build /app/build
 COPY --from=prod-deps /app/node_modules /app/node_modules
 COPY --from=prod-deps /app/package.json /app/package.json
+COPY --from=prod-deps /app/bindings.sh /app/bindings.sh
+
+RUN mkdir -p /root/.config/.wrangler && \
+    echo '{"enabled":false}' > /root/.config/.wrangler/metrics.json
+
+RUN chmod +x /app/bindings.sh
 
 EXPOSE 5173
 
-CMD ["npx", "remix-serve", "build/server/index.js"]
+CMD ["sh", "-c", "bindings=$(./bindings.sh) && npx wrangler pages dev ./build/client $bindings --ip 0.0.0.0 --port 5173 --no-show-interactive-dev-session --log-level error"]
