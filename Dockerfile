@@ -47,24 +47,13 @@ ENV RUNNING_IN_DOCKER=true
 ENV WRANGLER_SEND_METRICS=false
 ENV WRANGLER_LOG=error
 
-# Fix workerd TLS: install CA certificates so outbound HTTPS (DeepSeek, etc.) works
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
-  && update-ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
-ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
-ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
-
 COPY --from=prod-deps /app/build /app/build
 COPY --from=prod-deps /app/node_modules /app/node_modules
 COPY --from=prod-deps /app/package.json /app/package.json
-COPY --from=prod-deps /app/bindings.sh /app/bindings.sh
-COPY --from=prod-deps /app/worker-configuration.d.ts /app/worker-configuration.d.ts
-
-RUN mkdir -p /root/.config/.wrangler && \
-    echo '{"enabled":false}' > /root/.config/.wrangler/metrics.json
-
-RUN chmod +x /app/bindings.sh
+COPY --from=prod-deps /app/server.js /app/server.js
 
 EXPOSE 5173
 
-CMD ["sh", "-c", "bindings=$(./bindings.sh) && npx wrangler pages dev ./build/client $bindings --ip 0.0.0.0 --port 5173 --no-show-interactive-dev-session --log-level error"]
+# Use Node.js directly instead of wrangler — workerd TLS doesn't trust
+# external HTTPS certs in Docker, breaking all API calls.
+CMD ["node", "server.js"]
