@@ -201,6 +201,14 @@ export class LLMManager {
   }
 
   getDefaultProvider(): BaseProvider {
+    // Explicitly default to Deepseek — ES module namespace sorts alphabetically,
+    // so we can't rely on registry export order.
+    const deepseek = this._providers.get('Deepseek');
+
+    if (deepseek) {
+      return deepseek;
+    }
+
     const firstProvider = this._providers.values().next().value;
 
     if (!firstProvider) {
