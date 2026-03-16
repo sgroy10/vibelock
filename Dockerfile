@@ -56,4 +56,4 @@ EXPOSE 5173
 
 # Use Node.js directly instead of wrangler — workerd TLS doesn't trust
 # external HTTPS certs in Docker, breaking all API calls.
-CMD ["node", "server.js"]
+CMD ["node", "--conditions", "workerd", "--conditions", "worker", "--conditions", "browser", "server.js"]
