@@ -104,12 +104,10 @@ export const ChatImpl = memo(
     const { activeProviders, promptId, autoSelectTemplate, contextOptimizationEnabled } = useSettings();
     const [llmErrorAlert, setLlmErrorAlert] = useState<LlmErrorAlertType | undefined>(undefined);
     const [model, setModel] = useState(() => {
-      const savedModel = Cookies.get('selectedModel');
-      return savedModel || DEFAULT_MODEL;
+      return DEFAULT_MODEL; // google/gemini-2.5-flash via OpenRouter
     });
     const [provider, setProvider] = useState(() => {
-      const savedProvider = Cookies.get('selectedProvider');
-      return (PROVIDER_LIST.find((p) => p.name === savedProvider) || DEFAULT_PROVIDER) as ProviderInfo;
+      return DEFAULT_PROVIDER as ProviderInfo; // OpenRouter
     });
     const { showChat } = useStore(chatStore);
     const [animationScope, animate] = useAnimate();

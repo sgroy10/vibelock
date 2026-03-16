@@ -27,18 +27,27 @@ export default class OpenRouterProvider extends BaseProvider {
   };
 
   staticModels: ModelInfo[] = [
-    /*
-     * Essential fallback models - only the most stable/reliable ones
-     * Claude 3.5 Sonnet via OpenRouter: 200k context
-     */
+    // Gemini 2.5 Flash — fastest, best for web dev, default model
+    {
+      name: 'google/gemini-2.5-flash',
+      label: 'Gemini 2.5 Flash',
+      provider: 'OpenRouter',
+      maxTokenAllowed: 1000000,
+      maxCompletionTokens: 65536,
+    },
+    {
+      name: 'deepseek/deepseek-chat',
+      label: 'DeepSeek V3.2',
+      provider: 'OpenRouter',
+      maxTokenAllowed: 128000,
+      maxCompletionTokens: 8192,
+    },
     {
       name: 'anthropic/claude-3.5-sonnet',
       label: 'Claude 3.5 Sonnet',
       provider: 'OpenRouter',
       maxTokenAllowed: 200000,
     },
-
-    // GPT-4o via OpenRouter: 128k context
     {
       name: 'openai/gpt-4o',
       label: 'GPT-4o',
