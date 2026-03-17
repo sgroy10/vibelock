@@ -3,10 +3,7 @@ import React from 'react';
 const EXAMPLE_PROMPTS = [
   { text: 'Build a portfolio site with dark theme' },
   { text: 'Create a React dashboard with charts' },
-  { text: 'Make an e-commerce store with cart' },
-  { text: 'Build a real-time chat app' },
-  { text: 'Create a weather app with animations' },
-  { text: 'Make a landing page for a SaaS product' },
+  { text: 'Design a landing page for my startup' },
 ];
 
 export function ExamplePrompts(sendMessage?: { (event: React.UIEvent, messageInput?: string): void | undefined }) {

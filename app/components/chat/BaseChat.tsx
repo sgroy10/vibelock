@@ -18,7 +18,6 @@ import { ImportButtons } from '~/components/chat/chatExportAndImport/ImportButto
 import { ExamplePrompts } from '~/components/chat/ExamplePrompts';
 import GitCloneButton from './GitCloneButton';
 import type { ProviderInfo } from '~/types/model';
-import StarterTemplates from './StarterTemplates';
 import type { ActionAlert, SupabaseAlert, DeployAlert, LlmErrorAlertType } from '~/types/actions';
 import DeployChatAlert from '~/components/deploy/DeployAlert';
 import ChatAlert from './ChatAlert';
@@ -497,10 +496,16 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
             </StickToBottom>
             <div className="flex flex-col justify-center">
               {!chatStarted && (
-                <div className="flex justify-center gap-2">
-                  {ImportButtons(importChat)}
-                  <GitCloneButton importChat={importChat} />
-                </div>
+                <details className="flex flex-col items-center mt-2">
+                  <summary className="text-xs text-bolt-elements-textTertiary cursor-pointer hover:text-bolt-elements-textSecondary transition-theme text-center list-none flex items-center justify-center gap-1">
+                    <span className="i-ph:dots-three-outline-fill text-sm" />
+                    Import existing project
+                  </summary>
+                  <div className="flex justify-center gap-2 mt-3 animate-fade-in">
+                    {ImportButtons(importChat)}
+                    <GitCloneButton importChat={importChat} />
+                  </div>
+                </details>
               )}
               <div className="flex flex-col gap-5">
                 {!chatStarted &&
@@ -512,7 +517,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
 
                     handleSendMessage?.(event, messageInput);
                   })}
-                {!chatStarted && <StarterTemplates />}
               </div>
             </div>
           </div>
