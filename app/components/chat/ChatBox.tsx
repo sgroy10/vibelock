@@ -22,6 +22,8 @@ import { McpTools } from './MCPTools';
 import { WebSearch } from './WebSearch.client';
 
 interface ChatBoxProps {
+  viewMode?: 'facade' | 'coder';
+  setViewMode?: (mode: 'facade' | 'coder') => void;
   isModelSettingsCollapsed: boolean;
   setIsModelSettingsCollapsed: (collapsed: boolean) => void;
   provider: any;
@@ -280,7 +282,22 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
                 {props.chatMode === 'discuss' ? <span>Discuss</span> : <span />}
               </IconButton>
             )}
-            {/* Model settings button hidden — using fixed Gemini 2.5 Flash */}
+            {/* Facade/Coder mode toggle */}
+            <IconButton
+              title={props.viewMode === 'facade' ? 'Switch to Coder Mode' : 'Switch to Facade Mode'}
+              className={classNames(
+                'transition-all flex items-center gap-1 px-1.5',
+                props.viewMode === 'facade'
+                  ? '!bg-bolt-elements-item-backgroundAccent !text-bolt-elements-item-contentAccent'
+                  : 'bg-bolt-elements-item-backgroundDefault text-bolt-elements-item-contentDefault',
+              )}
+              onClick={() => {
+                props.setViewMode?.(props.viewMode === 'facade' ? 'coder' : 'facade');
+              }}
+            >
+              <div className={props.viewMode === 'facade' ? 'i-ph:eye-slash text-xl' : 'i-ph:code text-xl'} />
+              {props.viewMode === 'facade' ? <span className="text-xs">Facade</span> : <span className="text-xs">Coder</span>}
+            </IconButton>
           </div>
           {props.input.length > 3 ? (
             <div className="text-xs text-bolt-elements-textTertiary">

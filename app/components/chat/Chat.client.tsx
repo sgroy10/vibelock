@@ -113,6 +113,7 @@ export const ChatImpl = memo(
     const [animationScope, animate] = useAnimate();
     const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
     const [chatMode, setChatMode] = useState<'discuss' | 'build'>('build');
+    const [viewMode, setViewMode] = useState<'facade' | 'coder'>('facade');
     const [selectedElement, setSelectedElement] = useState<ElementInfo | null>(null);
     const mcpSettings = useMCPStore((state) => state.settings);
 
@@ -690,6 +691,8 @@ export const ChatImpl = memo(
         setSelectedElement={setSelectedElement}
         addToolResult={addToolResult}
         onWebSearchResult={handleWebSearchResult}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
       />
     );
   },

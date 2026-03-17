@@ -33,6 +33,7 @@ import { ChatBox } from './ChatBox';
 import type { DesignScheme } from '~/types/design-scheme';
 import type { ElementInfo } from '~/components/workbench/Inspector';
 import LlmErrorAlert from './LLMApiAlert';
+import { FacadeView } from './FacadeView';
 
 const TEXTAREA_MIN_HEIGHT = 76;
 
@@ -82,6 +83,8 @@ interface BaseChatProps {
   setSelectedElement?: (element: ElementInfo | null) => void;
   addToolResult?: ({ toolCallId, result }: { toolCallId: string; result: any }) => void;
   onWebSearchResult?: (result: string) => void;
+  viewMode?: 'facade' | 'coder';
+  setViewMode?: (mode: 'facade' | 'coder') => void;
 }
 
 export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
@@ -132,6 +135,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         throw new Error('addToolResult not implemented');
       },
       onWebSearchResult,
+      viewMode = 'facade',
+      setViewMode,
     },
     ref,
   ) => {
@@ -353,10 +358,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
             {!chatStarted && (
               <div id="intro" className="mt-[16vh] max-w-2xl mx-auto text-center px-4 lg:px-0">
                 <h1 className="text-3xl lg:text-6xl font-bold text-bolt-elements-textPrimary mb-4 animate-fade-in">
-                  Where ideas begin
+                  Vibe code without fear
                 </h1>
                 <p className="text-md lg:text-xl mb-8 text-bolt-elements-textSecondary animate-fade-in animation-delay-200">
-                  Bring ideas to life in seconds or get help on existing projects.
+                  Describe what you want. In any language. We build it live.
                 </p>
               </div>
             )}
@@ -370,7 +375,20 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               <StickToBottom.Content className="flex flex-col gap-4 relative ">
                 <ClientOnly>
                   {() => {
-                    return chatStarted ? (
+                    if (!chatStarted) {
+                      return null;
+                    }
+
+                    if (viewMode === 'facade') {
+                      return (
+                        <FacadeView
+                          messages={messages || []}
+                          isStreaming={isStreaming}
+                        />
+                      );
+                    }
+
+                    return (
                       <Messages
                         className="flex flex-col w-full flex-1 max-w-chat pb-4 mx-auto z-1"
                         messages={messages}
@@ -382,7 +400,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         model={model}
                         addToolResult={addToolResult}
                       />
-                    ) : null;
+                    );
                   }}
                 </ClientOnly>
                 <ScrollToBottom />
@@ -427,6 +445,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 </div>
                 {progressAnnotations && <ProgressCompilation data={progressAnnotations} />}
                 <ChatBox
+                  viewMode={viewMode}
+                  setViewMode={setViewMode}
                   isModelSettingsCollapsed={isModelSettingsCollapsed}
                   setIsModelSettingsCollapsed={setIsModelSettingsCollapsed}
                   provider={provider}
