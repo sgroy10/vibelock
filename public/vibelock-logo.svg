@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" fill="none">
+  <defs>
+    <linearGradient id="vlh" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FF8F3C"/>
+      <stop offset="100%" stop-color="#FF6B2C"/>
+    </linearGradient>
+  </defs>
+  <rect width="36" height="36" rx="8" fill="url(#vlh)"/>
+  <!-- V shape -->
+  <path d="M10 9L18 21L26 9" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Lock body attached to V bottom -->
+  <rect x="13" y="21" width="10" height="8.5" rx="2" fill="#fff"/>
+  <!-- Lock shackle -->
+  <path d="M15.5 21v-2.5a2.5 2.5 0 0 1 5 0V21" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+  <!-- Keyhole -->
+  <circle cx="18" cy="25" r="1.5" fill="#FF6B2C"/>
+</svg>

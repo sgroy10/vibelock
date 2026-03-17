@@ -368,6 +368,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 <p className="text-md lg:text-xl mb-8 text-bolt-elements-textSecondary animate-fade-in animation-delay-200">
                   Describe what you want. In any language. We build it live.
                 </p>
+                <div className="flex items-center justify-center gap-2 mt-2 animate-fade-in animation-delay-400">
+                  <span className="i-ph:shield-check text-sm text-green-500" />
+                  <span className="text-xs text-bolt-elements-textTertiary">Protected by SpecLock</span>
+                </div>
               </div>
             )}
             <StickToBottom

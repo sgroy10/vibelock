@@ -1,9 +1,10 @@
 import React from 'react';
 
 const EXAMPLE_PROMPTS = [
-  { text: 'Build a portfolio site with dark theme' },
-  { text: 'Create a React dashboard with charts' },
-  { text: 'Design a landing page for my startup' },
+  { text: 'Build a recipe app — हिंदी में interface बनाओ' },
+  { text: 'Crea una app de tareas con tema oscuro' },
+  { text: 'Build a SaaS landing page with auth' },
+  { text: 'Create a dashboard — SpecLock protected' },
 ];
 
 export function ExamplePrompts(sendMessage?: { (event: React.UIEvent, messageInput?: string): void | undefined }) {
