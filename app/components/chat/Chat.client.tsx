@@ -9,7 +9,7 @@ import { useMessageParser, usePromptEnhancer, useShortcuts } from '~/lib/hooks';
 import { description, useChatHistory } from '~/lib/persistence';
 import { chatStore } from '~/lib/stores/chat';
 import { workbenchStore } from '~/lib/stores/workbench';
-import { DEFAULT_MODEL, DEFAULT_PROVIDER, PROMPT_COOKIE_KEY, PROVIDER_LIST } from '~/utils/constants';
+import { DEFAULT_MODEL, ADVANCED_MODEL, DEFAULT_PROVIDER, PROMPT_COOKIE_KEY, PROVIDER_LIST } from '~/utils/constants';
 import { cubicEasingFn } from '~/utils/easings';
 import { createScopedLogger, renderLogger } from '~/utils/logger';
 import { BaseChat } from './BaseChat';
@@ -114,6 +114,8 @@ export const ChatImpl = memo(
     const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
     const [chatMode, setChatMode] = useState<'discuss' | 'build'>('build');
     const [viewMode, setViewMode] = useState<'facade' | 'coder'>('facade');
+    const [qualityMode, setQualityMode] = useState<'medium' | 'advanced'>('medium');
+    const [tokenUsage, setTokenUsage] = useState({ totalInput: 0, totalOutput: 0, totalCost: 0 });
     const [selectedElement, setSelectedElement] = useState<ElementInfo | null>(null);
     const mcpSettings = useMCPStore((state) => state.settings);
 
@@ -161,6 +163,23 @@ export const ChatImpl = memo(
 
         if (usage) {
           console.log('Token usage:', usage);
+
+          // Accumulate token usage for the session
+          const inputTokens = usage.promptTokens || 0;
+          const outputTokens = usage.completionTokens || 0;
+
+          // Estimate cost based on model (per 1M tokens)
+          const isAdvanced = model === 'google/gemini-2.5-pro';
+          const inputRate = isAdvanced ? 1.25 : 0.15; // $/1M tokens
+          const outputRate = isAdvanced ? 10.0 : 3.50;
+          const cost = (inputTokens * inputRate + outputTokens * outputRate) / 1_000_000;
+
+          setTokenUsage((prev) => ({
+            totalInput: prev.totalInput + inputTokens,
+            totalOutput: prev.totalOutput + outputTokens,
+            totalCost: prev.totalCost + cost,
+          }));
+
           logStore.logProvider('Chat response completed', {
             component: 'Chat',
             action: 'response',
@@ -195,6 +214,11 @@ export const ChatImpl = memo(
     const { parsedMessages, parseMessages } = useMessageParser();
 
     const TEXTAREA_MAX_HEIGHT = chatStarted ? 400 : 200;
+
+    // Switch model based on quality mode
+    useEffect(() => {
+      setModel(qualityMode === 'advanced' ? ADVANCED_MODEL : DEFAULT_MODEL);
+    }, [qualityMode]);
 
     useEffect(() => {
       chatStore.setKey('started', initialMessages.length > 0);
@@ -693,6 +717,9 @@ export const ChatImpl = memo(
         onWebSearchResult={handleWebSearchResult}
         viewMode={viewMode}
         setViewMode={setViewMode}
+        qualityMode={qualityMode}
+        setQualityMode={setQualityMode}
+        tokenUsage={tokenUsage}
       />
     );
   },

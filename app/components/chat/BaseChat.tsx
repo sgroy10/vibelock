@@ -85,6 +85,9 @@ interface BaseChatProps {
   onWebSearchResult?: (result: string) => void;
   viewMode?: 'facade' | 'coder';
   setViewMode?: (mode: 'facade' | 'coder') => void;
+  qualityMode?: 'medium' | 'advanced';
+  setQualityMode?: (mode: 'medium' | 'advanced') => void;
+  tokenUsage?: { totalInput: number; totalOutput: number; totalCost: number };
 }
 
 export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
@@ -137,6 +140,9 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       onWebSearchResult,
       viewMode = 'facade',
       setViewMode,
+      qualityMode = 'medium',
+      setQualityMode,
+      tokenUsage,
     },
     ref,
   ) => {
@@ -447,6 +453,9 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 <ChatBox
                   viewMode={viewMode}
                   setViewMode={setViewMode}
+                  qualityMode={qualityMode}
+                  setQualityMode={setQualityMode}
+                  tokenUsage={tokenUsage}
                   isModelSettingsCollapsed={isModelSettingsCollapsed}
                   setIsModelSettingsCollapsed={setIsModelSettingsCollapsed}
                   provider={provider}

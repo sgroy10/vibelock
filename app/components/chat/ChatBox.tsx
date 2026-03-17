@@ -24,6 +24,9 @@ import { WebSearch } from './WebSearch.client';
 interface ChatBoxProps {
   viewMode?: 'facade' | 'coder';
   setViewMode?: (mode: 'facade' | 'coder') => void;
+  qualityMode?: 'medium' | 'advanced';
+  setQualityMode?: (mode: 'medium' | 'advanced') => void;
+  tokenUsage?: { totalInput: number; totalOutput: number; totalCost: number };
   isModelSettingsCollapsed: boolean;
   setIsModelSettingsCollapsed: (collapsed: boolean) => void;
   provider: any;
@@ -282,6 +285,22 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
                 {props.chatMode === 'discuss' ? <span>Discuss</span> : <span />}
               </IconButton>
             )}
+            {/* Quality mode toggle */}
+            <IconButton
+              title={props.qualityMode === 'medium' ? 'Switch to Advanced (Gemini Pro)' : 'Switch to Medium (Gemini Flash)'}
+              className={classNames(
+                'transition-all flex items-center gap-1 px-1.5',
+                props.qualityMode === 'advanced'
+                  ? '!bg-bolt-elements-item-backgroundAccent !text-bolt-elements-item-contentAccent'
+                  : 'bg-bolt-elements-item-backgroundDefault text-bolt-elements-item-contentDefault',
+              )}
+              onClick={() => {
+                props.setQualityMode?.(props.qualityMode === 'medium' ? 'advanced' : 'medium');
+              }}
+            >
+              <div className={props.qualityMode === 'advanced' ? 'i-ph:lightning text-xl' : 'i-ph:gauge text-xl'} />
+              <span className="text-xs">{props.qualityMode === 'advanced' ? 'Advanced' : 'Medium'}</span>
+            </IconButton>
             {/* Facade/Coder mode toggle */}
             <IconButton
               title={props.viewMode === 'facade' ? 'Switch to Coder Mode' : 'Switch to Facade Mode'}
@@ -299,12 +318,21 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
               {props.viewMode === 'facade' ? <span className="text-xs">Facade</span> : <span className="text-xs">Coder</span>}
             </IconButton>
           </div>
-          {props.input.length > 3 ? (
-            <div className="text-xs text-bolt-elements-textTertiary">
-              Use <kbd className="kdb px-1.5 py-0.5 rounded bg-bolt-elements-background-depth-2">Shift</kbd> +{' '}
-              <kbd className="kdb px-1.5 py-0.5 rounded bg-bolt-elements-background-depth-2">Return</kbd> a new line
-            </div>
-          ) : null}
+          <div className="flex items-center gap-3">
+            {props.tokenUsage && props.tokenUsage.totalInput + props.tokenUsage.totalOutput > 0 && (
+              <div className="text-xs text-bolt-elements-textTertiary flex items-center gap-1.5" title={`Input: ${(props.tokenUsage.totalInput / 1000).toFixed(1)}K · Output: ${(props.tokenUsage.totalOutput / 1000).toFixed(1)}K`}>
+                <div className="i-ph:coins text-sm" style={{ color: '#FF6B2C' }} />
+                <span>{((props.tokenUsage.totalInput + props.tokenUsage.totalOutput) / 1000).toFixed(1)}K tokens</span>
+                <span>·</span>
+                <span>${props.tokenUsage.totalCost.toFixed(3)}</span>
+              </div>
+            )}
+            {props.input.length > 3 ? (
+              <div className="text-xs text-bolt-elements-textTertiary">
+                <kbd className="kdb px-1.5 py-0.5 rounded bg-bolt-elements-background-depth-2">Shift</kbd>+<kbd className="kdb px-1.5 py-0.5 rounded bg-bolt-elements-background-depth-2">Return</kbd> new line
+              </div>
+            ) : null}
+          </div>
           <SupabaseConnection />
           <ExpoQrModal open={props.qrModalOpen} onClose={() => props.setQrModalOpen(false)} />
         </div>
