@@ -191,7 +191,7 @@ export const FacadeView: React.FC<FacadeViewProps> = ({ messages, isStreaming, c
                 }}
               >
                 <div className="text-xs font-medium mb-3" style={{ color: 'var(--bolt-elements-textTertiary)' }}>
-                  Building your app...
+                  {isStreaming ? 'VibeLock is building your app...' : "Here's what VibeLock built for you"}
                 </div>
                 <div className="flex flex-col gap-2">
                   {steps.map((step, i) => (
@@ -248,6 +248,24 @@ export const FacadeView: React.FC<FacadeViewProps> = ({ messages, isStreaming, c
                 <span className="text-xs" style={{ color: 'var(--bolt-elements-textTertiary)' }}>
                   {trivia}
                 </span>
+              </div>
+            )}
+
+            {/* App ready celebration — shown when streaming ends and we have steps */}
+            {!isStreaming && steps.length > 0 && (
+              <div
+                className="rounded-2xl px-5 py-4 flex items-center gap-3 animate-fade-in"
+                style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)' }}
+              >
+                <div className="i-ph:rocket-launch text-2xl" style={{ color: '#22C55E' }} />
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium" style={{ color: '#22C55E' }}>
+                    Your app is ready!
+                  </span>
+                  <span className="text-xs" style={{ color: 'var(--bolt-elements-textTertiary)' }}>
+                    Check the preview on the right. You can keep refining it.
+                  </span>
+                </div>
               </div>
             )}
           </div>
