@@ -133,15 +133,23 @@ export const FacadeView: React.FC<FacadeViewProps> = ({ messages, isStreaming, c
       return '';
     }
 
-    // Strip XML tags to get the natural language part
+    // Strip XML tags, template instructions, and code blocks to get the natural language part
     const cleaned = lastAssistantContent
       .replace(/<boltArtifact[^>]*>[\s\S]*?<\/boltArtifact>/g, '')
       .replace(/<boltAction[^>]*>[\s\S]*?<\/boltAction>/g, '')
+      .replace(/<[^>]+>[\s\S]*?<\/[^>]+>/g, '')
       .replace(/<[^>]+>/g, '')
+      .replace(/TEMPLATE INSTRUCTIONS[\s\S]*?(?=\n\n|$)/gi, '')
+      .replace(/```[\s\S]*?```/g, '')
+      .replace(/\n{3,}/g, '\n\n')
       .trim();
 
-    // Take first 500 chars of clean text
-    return cleaned.slice(0, 500);
+    if (!cleaned || cleaned.length < 10) {
+      return '';
+    }
+
+    // Take first 300 chars of clean text
+    return cleaned.slice(0, 300);
   }, [lastAssistantContent]);
 
   return (
