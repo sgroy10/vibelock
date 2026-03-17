@@ -9,7 +9,7 @@ import { useMessageParser, usePromptEnhancer, useShortcuts } from '~/lib/hooks';
 import { description, useChatHistory } from '~/lib/persistence';
 import { chatStore } from '~/lib/stores/chat';
 import { workbenchStore } from '~/lib/stores/workbench';
-import { DEFAULT_MODEL, ADVANCED_MODEL, DEFAULT_PROVIDER, PROMPT_COOKIE_KEY, PROVIDER_LIST } from '~/utils/constants';
+import { DEFAULT_MODEL, ADVANCED_MODEL, DEFAULT_PROVIDER, PROMPT_COOKIE_KEY } from '~/utils/constants';
 import { cubicEasingFn } from '~/utils/easings';
 import { createScopedLogger, renderLogger } from '~/utils/logger';
 import { BaseChat } from './BaseChat';
@@ -171,7 +171,7 @@ export const ChatImpl = memo(
           // Estimate cost based on model (per 1M tokens)
           const isAdvanced = model === 'google/gemini-2.5-pro';
           const inputRate = isAdvanced ? 1.25 : 0.15; // $/1M tokens
-          const outputRate = isAdvanced ? 10.0 : 3.50;
+          const outputRate = isAdvanced ? 10 : 3.5;
           const cost = (inputTokens * inputRate + outputTokens * outputRate) / 1_000_000;
 
           setTokenUsage((prev) => ({

@@ -1,10 +1,6 @@
 import React from 'react';
 import { ClientOnly } from 'remix-utils/client-only';
 import { classNames } from '~/utils/classNames';
-import { PROVIDER_LIST } from '~/utils/constants';
-import { ModelSelector } from '~/components/chat/ModelSelector';
-import { APIKeyManager } from './APIKeyManager';
-import { LOCAL_PROVIDERS } from '~/lib/stores/settings';
 import FilePreview from './FilePreview';
 import { ScreenshotStateManager } from './ScreenshotStateManager';
 import { SendButton } from './SendButton.client';
@@ -109,9 +105,7 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
         <rect className={classNames(styles.PromptEffectLine)} pathLength="100" strokeLinecap="round"></rect>
         <rect className={classNames(styles.PromptShine)} x="48" y="24" width="70" height="1"></rect>
       </svg>
-      <div>
-        {/* Model selector hidden — VibeLock uses Gemini 2.5 Flash via OpenRouter */}
-      </div>
+      <div>{/* Model selector hidden — VibeLock uses Gemini 2.5 Flash via OpenRouter */}</div>
       <FilePreview
         files={props.uploadedFiles}
         imageDataList={props.imageDataList}
@@ -287,7 +281,9 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
             )}
             {/* Quality mode toggle */}
             <IconButton
-              title={props.qualityMode === 'medium' ? 'Switch to Advanced (Gemini Pro)' : 'Switch to Medium (Gemini Flash)'}
+              title={
+                props.qualityMode === 'medium' ? 'Switch to Advanced (Gemini Pro)' : 'Switch to Medium (Gemini Flash)'
+              }
               className={classNames(
                 'transition-all flex items-center gap-1 px-1.5',
                 props.qualityMode === 'advanced'
@@ -315,12 +311,19 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
               }}
             >
               <div className={props.viewMode === 'facade' ? 'i-ph:eye-slash text-xl' : 'i-ph:code text-xl'} />
-              {props.viewMode === 'facade' ? <span className="text-xs">Facade</span> : <span className="text-xs">Coder</span>}
+              {props.viewMode === 'facade' ? (
+                <span className="text-xs">Facade</span>
+              ) : (
+                <span className="text-xs">Coder</span>
+              )}
             </IconButton>
           </div>
           <div className="flex items-center gap-3">
             {props.tokenUsage && props.tokenUsage.totalInput + props.tokenUsage.totalOutput > 0 && (
-              <div className="text-xs text-bolt-elements-textTertiary flex items-center gap-1.5" title={`Input: ${(props.tokenUsage.totalInput / 1000).toFixed(1)}K · Output: ${(props.tokenUsage.totalOutput / 1000).toFixed(1)}K`}>
+              <div
+                className="text-xs text-bolt-elements-textTertiary flex items-center gap-1.5"
+                title={`Input: ${(props.tokenUsage.totalInput / 1000).toFixed(1)}K · Output: ${(props.tokenUsage.totalOutput / 1000).toFixed(1)}K`}
+              >
                 <div className="i-ph:coins text-sm" style={{ color: '#FF6B2C' }} />
                 <span>{((props.tokenUsage.totalInput + props.tokenUsage.totalOutput) / 1000).toFixed(1)}K tokens</span>
                 <span>·</span>
@@ -329,7 +332,8 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
             )}
             {props.input.length > 3 ? (
               <div className="text-xs text-bolt-elements-textTertiary">
-                <kbd className="kdb px-1.5 py-0.5 rounded bg-bolt-elements-background-depth-2">Shift</kbd>+<kbd className="kdb px-1.5 py-0.5 rounded bg-bolt-elements-background-depth-2">Return</kbd> new line
+                <kbd className="kdb px-1.5 py-0.5 rounded bg-bolt-elements-background-depth-2">Shift</kbd>+
+                <kbd className="kdb px-1.5 py-0.5 rounded bg-bolt-elements-background-depth-2">Return</kbd> new line
               </div>
             ) : null}
           </div>

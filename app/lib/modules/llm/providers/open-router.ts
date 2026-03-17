@@ -35,7 +35,6 @@ export default class OpenRouterProvider extends BaseProvider {
       maxTokenAllowed: 1000000,
       maxCompletionTokens: 65536,
     },
-    // Gemini 2.5 Pro — Advanced mode, stronger reasoning
     {
       name: 'google/gemini-2.5-pro',
       label: 'Gemini 2.5 Pro',

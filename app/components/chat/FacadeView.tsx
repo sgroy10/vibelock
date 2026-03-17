@@ -20,11 +20,11 @@ const TRIVIA = [
   'The term "bug" came from an actual moth found in a computer in 1947',
   'Over 1.8 billion websites exist, but only ~200 million are active',
   'The average web page is now over 2MB — heavier than the original Doom game',
-  'React was first deployed on Facebook\'s News Feed in 2011',
+  "React was first deployed on Facebook's News Feed in 2011",
   'TypeScript was released by Microsoft in 2012 and is now used in 78% of large projects',
-  'Node.js runs on Chrome\'s V8 engine — the same engine powering billions of browsers',
+  "Node.js runs on Chrome's V8 engine — the same engine powering billions of browsers",
   'The first programmer was Ada Lovelace, who wrote code in the 1840s',
-  'CSS Grid was proposed in 2011 but didn\'t get full browser support until 2017',
+  "CSS Grid was proposed in 2011 but didn't get full browser support until 2017",
   'Tailwind CSS went from $0 revenue to $12M ARR in under 3 years',
   'The "cloud" is just someone else\'s computer — over 100 million servers worldwide',
 ];
@@ -93,21 +93,18 @@ function parseStepsFromContent(content: string): ProgressStep[] {
 
 export const FacadeView: React.FC<FacadeViewProps> = ({ messages, isStreaming, className }) => {
   const [trivia, setTrivia] = useState(getRandomTrivia());
-  const [triviaIndex, setTriviaIndex] = useState(0);
 
   // Rotate trivia every 6 seconds while streaming
   useEffect(() => {
     if (!isStreaming) {
-      return;
+      return undefined;
     }
 
-    const interval = setInterval(() => {
-      setTriviaIndex((prev) => {
-        const next = (prev + 1) % TRIVIA.length;
-        setTrivia(TRIVIA[next]);
+    let index = 0;
 
-        return next;
-      });
+    const interval = setInterval(() => {
+      index = (index + 1) % TRIVIA.length;
+      setTrivia(TRIVIA[index]);
     }, 6000);
 
     return () => clearInterval(interval);
@@ -154,12 +151,16 @@ export const FacadeView: React.FC<FacadeViewProps> = ({ messages, isStreaming, c
         .filter((m) => m.role === 'user')
         .map((msg, i) => {
           const content = typeof msg.content === 'string' ? msg.content : '';
+
           // Strip model/provider prefix
           const cleanContent = content.replace(/^\[Model:.*?\]\n\n\[Provider:.*?\]\n\n/, '');
 
           return (
             <div key={msg.id || i} className="flex justify-end mb-4">
-              <div className="max-w-[80%] rounded-2xl px-4 py-3 text-sm" style={{ background: 'rgba(255,107,44,0.12)', color: 'var(--bolt-elements-textPrimary)' }}>
+              <div
+                className="max-w-[80%] rounded-2xl px-4 py-3 text-sm"
+                style={{ background: 'rgba(255,107,44,0.12)', color: 'var(--bolt-elements-textPrimary)' }}
+              >
                 {cleanContent}
               </div>
             </div>
@@ -184,7 +185,10 @@ export const FacadeView: React.FC<FacadeViewProps> = ({ messages, isStreaming, c
             {steps.length > 0 && (
               <div
                 className="rounded-2xl px-4 py-3 mb-3"
-                style={{ background: 'var(--bolt-elements-bg-depth-2)', border: '1px solid var(--bolt-elements-borderColor)' }}
+                style={{
+                  background: 'var(--bolt-elements-bg-depth-2)',
+                  border: '1px solid var(--bolt-elements-borderColor)',
+                }}
               >
                 <div className="text-xs font-medium mb-3" style={{ color: 'var(--bolt-elements-textTertiary)' }}>
                   Building your app...
@@ -198,13 +202,19 @@ export const FacadeView: React.FC<FacadeViewProps> = ({ messages, isStreaming, c
                         ) : step.status === 'active' ? (
                           <div className="i-svg-spinners:90-ring-with-bg text-lg" style={{ color: '#FF6B2C' }} />
                         ) : (
-                          <div className={`${step.icon} text-lg`} style={{ color: 'var(--bolt-elements-textTertiary)' }} />
+                          <div
+                            className={`${step.icon} text-lg`}
+                            style={{ color: 'var(--bolt-elements-textTertiary)' }}
+                          />
                         )}
                       </div>
                       <span
                         className="text-sm"
                         style={{
-                          color: step.status === 'done' ? 'var(--bolt-elements-textPrimary)' : 'var(--bolt-elements-textTertiary)',
+                          color:
+                            step.status === 'done'
+                              ? 'var(--bolt-elements-textPrimary)'
+                              : 'var(--bolt-elements-textTertiary)',
                         }}
                       >
                         {step.label}
@@ -222,9 +232,18 @@ export const FacadeView: React.FC<FacadeViewProps> = ({ messages, isStreaming, c
                 style={{ background: 'rgba(255,107,44,0.06)', border: '1px solid rgba(255,107,44,0.12)' }}
               >
                 <div className="flex gap-1">
-                  <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: '#FF6B2C', animationDelay: '0ms' }} />
-                  <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: '#FF8F3C', animationDelay: '150ms' }} />
-                  <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: '#FFB070', animationDelay: '300ms' }} />
+                  <div
+                    className="w-2 h-2 rounded-full animate-bounce"
+                    style={{ background: '#FF6B2C', animationDelay: '0ms' }}
+                  />
+                  <div
+                    className="w-2 h-2 rounded-full animate-bounce"
+                    style={{ background: '#FF8F3C', animationDelay: '150ms' }}
+                  />
+                  <div
+                    className="w-2 h-2 rounded-full animate-bounce"
+                    style={{ background: '#FFB070', animationDelay: '300ms' }}
+                  />
                 </div>
                 <span className="text-xs" style={{ color: 'var(--bolt-elements-textTertiary)' }}>
                   {trivia}
