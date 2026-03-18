@@ -30,7 +30,7 @@ export const ExpoQrModal: React.FC<ExpoQrModalProps> = ({ open, onClose }) => {
           <div className="my-6 flex flex-col items-center">
             {expoUrl ? (
               <QRCode
-                logoImage="/vibelock-logo.svg"
+                logoImage="/vibelock-logo.png"
                 removeQrCodeBehindLogo={true}
                 logoPadding={3}
                 logoHeight={50}
