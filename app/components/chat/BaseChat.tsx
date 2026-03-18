@@ -363,7 +363,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
             {!chatStarted && (
               <div id="intro" className="mt-[16vh] max-w-2xl mx-auto text-center px-4 lg:px-0">
                 <div className="flex justify-center mb-6 animate-fade-in">
-                  <img src="/vibelock-logo.svg" alt="VibeLock" className="w-14 h-16 drop-shadow-lg" />
+                  <img src="/vibelock-logo.png" alt="VibeLock" className="w-16 h-16 object-contain drop-shadow-lg" />
                 </div>
                 <h1 className="text-3xl lg:text-6xl font-bold text-bolt-elements-textPrimary mb-4 animate-fade-in animation-delay-200">
                   Vibe code <span style={{ color: '#FF6B2C' }}>without fear</span>
