@@ -362,13 +362,16 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
           <div className={classNames(styles.Chat, 'flex flex-col flex-grow lg:min-w-[var(--chat-min-width)] h-full')}>
             {!chatStarted && (
               <div id="intro" className="mt-[16vh] max-w-2xl mx-auto text-center px-4 lg:px-0">
-                <h1 className="text-3xl lg:text-6xl font-bold text-bolt-elements-textPrimary mb-4 animate-fade-in">
+                <div className="flex justify-center mb-6 animate-fade-in">
+                  <img src="/vibelock-logo.svg" alt="VibeLock" className="w-14 h-16 drop-shadow-lg" />
+                </div>
+                <h1 className="text-3xl lg:text-6xl font-bold text-bolt-elements-textPrimary mb-4 animate-fade-in animation-delay-200">
                   Vibe code <span style={{ color: '#FF6B2C' }}>without fear</span>
                 </h1>
-                <p className="text-md lg:text-xl mb-8 text-bolt-elements-textSecondary animate-fade-in animation-delay-200">
+                <p className="text-md lg:text-xl mb-8 text-bolt-elements-textSecondary animate-fade-in animation-delay-400">
                   Describe what you want. In any language. We build it live.
                 </p>
-                <div className="flex items-center justify-center gap-2 mt-2 animate-fade-in animation-delay-400">
+                <div className="flex items-center justify-center gap-2 mt-2 animate-fade-in animation-delay-600">
                   <span className="i-ph:shield-check text-sm text-green-500" />
                   <span className="text-xs text-bolt-elements-textTertiary">Protected by SpecLock</span>
                 </div>
