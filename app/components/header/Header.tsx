@@ -17,7 +17,11 @@ export function Header() {
     >
       <div className="flex items-center gap-2 z-logo text-bolt-elements-textPrimary cursor-pointer">
         <a href="/" className="flex items-center gap-1.5">
-          <img src="/vibelock-logo.png" alt="VibeLock" className="w-9 h-9 object-contain" />
+          <img
+            src="/vibelock-logo.png"
+            alt="VibeLock"
+            style={{ width: '32px', height: '32px', objectFit: 'contain' }}
+          />
           <span className="text-lg font-semibold" style={{ color: '#FF6B2C' }}>
             VibeLock
           </span>
