@@ -25,8 +25,8 @@ const toastAnimation = cssTransition({
 export const links: LinksFunction = () => [
   {
     rel: 'icon',
-    href: '/vibelock-favicon.png',
-    type: 'image/png',
+    href: '/vibelock-favicon.svg',
+    type: 'image/svg+xml',
   },
   { rel: 'stylesheet', href: reactToastifyStyles },
   { rel: 'stylesheet', href: tailwindReset },

@@ -1,31 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 80" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" fill="none">
   <defs>
-    <linearGradient id="flame-outer" x1="32" y1="0" x2="32" y2="80" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#FFD700"/>
-      <stop offset="40%" stop-color="#FFA500"/>
-      <stop offset="100%" stop-color="#FF4500"/>
-    </linearGradient>
-    <linearGradient id="flame-inner" x1="32" y1="20" x2="32" y2="75" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#FFE066"/>
-      <stop offset="50%" stop-color="#FFB347"/>
+    <linearGradient id="vlh" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FF8F3C"/>
       <stop offset="100%" stop-color="#FF6B2C"/>
     </linearGradient>
-    <linearGradient id="lock-body" x1="32" y1="42" x2="32" y2="68" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#FFFFFF"/>
-      <stop offset="100%" stop-color="#F0F0F0"/>
-    </linearGradient>
   </defs>
-  <!-- Outer flame shape -->
-  <path d="M32 0C32 0 52 18 56 38C60 58 48 76 32 80C16 76 4 58 8 38C12 18 32 0 32 0Z" fill="url(#flame-outer)"/>
-  <!-- Inner flame curl (right side accent) -->
-  <path d="M44 16C44 16 54 30 52 46C50 60 40 70 32 74C24 70 14 60 12 46C10 30 20 16 20 16C20 16 28 28 32 22C36 16 44 16 44 16Z" fill="url(#flame-inner)" opacity="0.7"/>
-  <!-- Flame tip -->
-  <path d="M32 2C32 2 38 12 36 8C34 4 32 2 32 2Z" fill="#FFE566" opacity="0.5"/>
+  <rect width="36" height="36" rx="8" fill="url(#vlh)"/>
+  <!-- V shape -->
+  <path d="M10 9L18 21L26 9" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Lock body attached to V bottom -->
+  <rect x="13" y="21" width="10" height="8.5" rx="2" fill="#fff"/>
   <!-- Lock shackle -->
-  <path d="M24 44V38C24 32.5 27.6 28 32 28C36.4 28 40 32.5 40 38V44" fill="none" stroke="white" stroke-width="4" stroke-linecap="round"/>
-  <!-- Lock body -->
-  <rect x="20" y="44" width="24" height="20" rx="4" fill="url(#lock-body)"/>
+  <path d="M15.5 21v-2.5a2.5 2.5 0 0 1 5 0V21" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
   <!-- Keyhole -->
-  <circle cx="32" cy="52" r="3" fill="#FF8C00"/>
-  <rect x="30.5" y="52" width="3" height="5" rx="1.5" fill="#FF8C00"/>
+  <circle cx="18" cy="25" r="1.5" fill="#FF6B2C"/>
 </svg>
