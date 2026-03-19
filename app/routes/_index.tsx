@@ -3,21 +3,30 @@ import { ClientOnly } from 'remix-utils/client-only';
 import { BaseChat } from '~/components/chat/BaseChat';
 import { Chat } from '~/components/chat/Chat.client';
 import { Header } from '~/components/header/Header';
-import BackgroundRays from '~/components/ui/BackgroundRays';
+import { GradientMesh } from '~/components/ui/GradientMesh';
 
 export const meta: MetaFunction = () => {
-  return [{ title: 'VibeLock' }, { name: 'description', content: 'VibeLock - Reliability-first vibe coding platform' }];
+  return [
+    { title: 'VibeLock — Build apps with confidence' },
+    {
+      name: 'description',
+      content:
+        'Describe what you want, in any language. VibeLock builds it live with AI — protected by SpecLock constraints.',
+    },
+    { property: 'og:title', content: 'VibeLock — Build apps with confidence' },
+    {
+      property: 'og:description',
+      content: 'The reliability-first AI coding platform. Multilingual. Constraint-protected. Beautiful by default.',
+    },
+  ];
 };
 
 export const loader = () => json({});
 
-/**
- * Landing page component for VibeLock
- */
 export default function Index() {
   return (
     <div className="flex flex-col h-full w-full bg-bolt-elements-background-depth-1">
-      <BackgroundRays />
+      <GradientMesh />
       <Header />
       <ClientOnly fallback={<BaseChat />}>{() => <Chat />}</ClientOnly>
     </div>

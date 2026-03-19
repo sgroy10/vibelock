@@ -361,24 +361,82 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         <div className="flex flex-col lg:flex-row overflow-y-auto w-full h-full">
           <div className={classNames(styles.Chat, 'flex flex-col flex-grow lg:min-w-[var(--chat-min-width)] h-full')}>
             {!chatStarted && (
-              <div id="intro" className="mt-[16vh] max-w-2xl mx-auto text-center px-4 lg:px-0">
-                <div className="flex justify-center mb-6 animate-fade-in">
+              <div id="intro" className="mt-[10vh] max-w-3xl mx-auto text-center px-4 lg:px-0">
+                {/* Logo */}
+                <div
+                  className="flex justify-center mb-5"
+                  style={{ animation: 'fadeSlideDown 0.5s ease-out both' }}
+                >
                   <img
                     src="/vibelock-logo.png"
                     alt="VibeLock"
-                    style={{ width: '140px', height: '180px', objectFit: 'contain' }}
+                    style={{ width: '80px', height: '80px', objectFit: 'contain' }}
                   />
                 </div>
-                <h1 className="text-3xl lg:text-6xl font-bold text-bolt-elements-textPrimary mb-4 animate-fade-in animation-delay-200">
-                  Vibe code <span style={{ color: '#FF6B2C' }}>without fear</span>
-                </h1>
-                <p className="text-md lg:text-xl mb-8 text-bolt-elements-textSecondary animate-fade-in animation-delay-400">
-                  Describe what you want. In any language. We build it live.
-                </p>
-                <div className="flex items-center justify-center gap-2 mt-2 animate-fade-in animation-delay-600">
-                  <span className="i-ph:shield-check text-sm text-green-500" />
-                  <span className="text-xs text-bolt-elements-textTertiary">Protected by SpecLock</span>
+
+                {/* Tagline */}
+                <div
+                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium mb-6 border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2/50 backdrop-blur-sm text-bolt-elements-textSecondary"
+                  style={{ animation: 'fadeSlideDown 0.5s ease-out 0.05s both' }}
+                >
+                  <span className="i-ph:shield-check text-sm" style={{ color: '#4ade80' }} />
+                  Protected by SpecLock — your constraints, always enforced
                 </div>
+
+                {/* Hero heading */}
+                <h1
+                  className="text-4xl sm:text-5xl lg:text-6xl font-bold text-bolt-elements-textPrimary mb-5 leading-tight tracking-tight"
+                  style={{ animation: 'fadeSlideDown 0.5s ease-out 0.1s both' }}
+                >
+                  Build apps with{' '}
+                  <span
+                    style={{
+                      background: 'linear-gradient(135deg, #FF8F3C, #FF6B2C, #E85A1E)',
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                    }}
+                  >
+                    confidence
+                  </span>
+                </h1>
+
+                {/* Subtext */}
+                <p
+                  className="text-base lg:text-lg text-bolt-elements-textSecondary max-w-xl mx-auto leading-relaxed mb-8"
+                  style={{ animation: 'fadeSlideDown 0.5s ease-out 0.2s both' }}
+                >
+                  Describe what you want, in any language.
+                  <br className="hidden sm:block" />
+                  VibeLock builds it live with AI — beautifully, reliably.
+                </p>
+
+                {/* Feature pills */}
+                <div
+                  className="flex flex-wrap items-center justify-center gap-3 mb-2"
+                  style={{ animation: 'fadeSlideDown 0.5s ease-out 0.3s both' }}
+                >
+                  {[
+                    { icon: 'i-ph:globe', label: 'Multilingual' },
+                    { icon: 'i-ph:lock-simple', label: 'Constraint-Safe' },
+                    { icon: 'i-ph:paint-brush', label: 'Beautiful by Default' },
+                    { icon: 'i-ph:lightning', label: 'AI-Powered' },
+                  ].map((feat) => (
+                    <span
+                      key={feat.label}
+                      className="inline-flex items-center gap-1.5 text-xs text-bolt-elements-textTertiary"
+                    >
+                      <span className={`${feat.icon} text-sm`} style={{ color: 'rgba(255,107,44,0.5)' }} />
+                      {feat.label}
+                    </span>
+                  ))}
+                </div>
+
+                <style>{`
+                  @keyframes fadeSlideDown {
+                    from { opacity: 0; transform: translateY(-12px); }
+                    to { opacity: 1; transform: translateY(0); }
+                  }
+                `}</style>
               </div>
             )}
             <StickToBottom
@@ -507,28 +565,30 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
             </StickToBottom>
             <div className="flex flex-col justify-center">
               {!chatStarted && (
-                <details className="flex flex-col items-center mt-2">
-                  <summary className="text-xs text-bolt-elements-textTertiary cursor-pointer hover:text-bolt-elements-textSecondary transition-theme text-center list-none flex items-center justify-center gap-1">
-                    <span className="i-ph:dots-three-outline-fill text-sm" />
-                    Import existing project
-                  </summary>
-                  <div className="flex justify-center gap-2 mt-3 animate-fade-in">
+                <>
+                  <div className="flex flex-col gap-5">
+                    {ExamplePrompts((event, messageInput) => {
+                      if (isStreaming) {
+                        handleStop?.();
+                        return;
+                      }
+
+                      handleSendMessage?.(event, messageInput);
+                    })}
+                  </div>
+                  <div className="flex items-center justify-center gap-3 mt-6 mb-4">
+                    <div className="h-px flex-1 max-w-[60px] bg-bolt-elements-borderColor" />
+                    <span className="text-[10px] text-bolt-elements-textTertiary uppercase tracking-widest">
+                      or import
+                    </span>
+                    <div className="h-px flex-1 max-w-[60px] bg-bolt-elements-borderColor" />
+                  </div>
+                  <div className="flex justify-center gap-2 mb-4">
                     {ImportButtons(importChat)}
                     <GitCloneButton importChat={importChat} />
                   </div>
-                </details>
+                </>
               )}
-              <div className="flex flex-col gap-5">
-                {!chatStarted &&
-                  ExamplePrompts((event, messageInput) => {
-                    if (isStreaming) {
-                      handleStop?.();
-                      return;
-                    }
-
-                    handleSendMessage?.(event, messageInput);
-                  })}
-              </div>
             </div>
           </div>
           <ClientOnly>
