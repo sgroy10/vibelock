@@ -22,9 +22,9 @@ import { FileBreadcrumb } from './FileBreadcrumb';
 import { FileTree } from './FileTree';
 import { DEFAULT_TERMINAL_SIZE, TerminalTabs } from './terminal/TerminalTabs';
 import { workbenchStore } from '~/lib/stores/workbench';
-import { Search } from './Search'; // <-- Ensure Search is imported
-import { classNames } from '~/utils/classNames'; // <-- Import classNames if not already present
-import { LockManager } from './LockManager'; // <-- Import LockManager
+import { Search } from './Search';
+import { classNames } from '~/utils/classNames';
+import { LockManager } from './LockManager';
 
 interface EditorPanelProps {
   files?: FileMap;
@@ -43,6 +43,12 @@ interface EditorPanelProps {
 const DEFAULT_EDITOR_SIZE = 100 - DEFAULT_TERMINAL_SIZE;
 
 const editorSettings: EditorSettings = { tabSize: 2 };
+
+const tabTriggerClass = classNames(
+  'h-full bg-transparent py-1 px-2.5 rounded-md text-xs font-medium transition-colors',
+  'text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary',
+  'data-[state=active]:text-bolt-elements-item-contentAccent data-[state=active]:bg-bolt-elements-item-backgroundAccent',
+);
 
 export const EditorPanel = memo(
   ({
@@ -76,7 +82,6 @@ export const EditorPanel = memo(
         return false;
       }
 
-      // Make sure unsavedFiles is a Set before calling has()
       return unsavedFiles instanceof Set && unsavedFiles.has(editorDocument.filePath);
     }, [editorDocument, unsavedFiles]);
 
@@ -84,39 +89,23 @@ export const EditorPanel = memo(
       <PanelGroup direction="vertical">
         <Panel defaultSize={showTerminal ? DEFAULT_EDITOR_SIZE : 100} minSize={20}>
           <PanelGroup direction="horizontal">
+            {/* Sidebar — Files / Search / Locks */}
             <Panel defaultSize={20} minSize={15} collapsible className="border-r border-bolt-elements-borderColor">
-              <div className="h-full">
+              <div className="h-full flex flex-col">
                 <Tabs.Root defaultValue="files" className="flex flex-col h-full">
-                  <PanelHeader className="w-full text-sm font-medium text-bolt-elements-textSecondary px-1">
-                    <div className="h-full flex-shrink-0 flex items-center justify-between w-full">
-                      <Tabs.List className="h-full flex-shrink-0 flex items-center">
-                        <Tabs.Trigger
-                          value="files"
-                          className={classNames(
-                            'h-full bg-transparent hover:bg-bolt-elements-background-depth-3 py-0.5 px-2 rounded-lg text-sm font-medium text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary data-[state=active]:text-bolt-elements-textPrimary',
-                          )}
-                        >
-                          Files
-                        </Tabs.Trigger>
-                        <Tabs.Trigger
-                          value="search"
-                          className={classNames(
-                            'h-full bg-transparent hover:bg-bolt-elements-background-depth-3 py-0.5 px-2 rounded-lg text-sm font-medium text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary data-[state=active]:text-bolt-elements-textPrimary',
-                          )}
-                        >
-                          Search
-                        </Tabs.Trigger>
-                        <Tabs.Trigger
-                          value="locks"
-                          className={classNames(
-                            'h-full bg-transparent hover:bg-bolt-elements-background-depth-3 py-0.5 px-2 rounded-lg text-sm font-medium text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary data-[state=active]:text-bolt-elements-textPrimary',
-                          )}
-                        >
-                          Locks
-                        </Tabs.Trigger>
-                      </Tabs.List>
-                    </div>
-                  </PanelHeader>
+                  <div className="flex items-center px-2 py-1 border-b border-bolt-elements-borderColor bg-bolt-elements-background-depth-2">
+                    <Tabs.List className="flex items-center gap-0.5">
+                      <Tabs.Trigger value="files" className={tabTriggerClass}>
+                        Files
+                      </Tabs.Trigger>
+                      <Tabs.Trigger value="search" className={tabTriggerClass}>
+                        Search
+                      </Tabs.Trigger>
+                      <Tabs.Trigger value="locks" className={tabTriggerClass}>
+                        Locks
+                      </Tabs.Trigger>
+                    </Tabs.List>
+                  </div>
 
                   <Tabs.Content value="files" className="flex-grow overflow-auto focus-visible:outline-none">
                     <FileTree
@@ -143,6 +132,8 @@ export const EditorPanel = memo(
             </Panel>
 
             <PanelResizeHandle />
+
+            {/* Editor */}
             <Panel className="flex flex-col" defaultSize={80} minSize={20}>
               <PanelHeader className="overflow-x-auto">
                 {activeFileSegments?.length && (
