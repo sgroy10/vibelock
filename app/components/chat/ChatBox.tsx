@@ -18,8 +18,6 @@ import { McpTools } from './MCPTools';
 import { WebSearch } from './WebSearch.client';
 
 interface ChatBoxProps {
-  viewMode?: 'facade' | 'coder';
-  setViewMode?: (mode: 'facade' | 'coder') => void;
   qualityMode?: 'medium' | 'advanced';
   setQualityMode?: (mode: 'medium' | 'advanced') => void;
   tokenUsage?: { totalInput: number; totalOutput: number; totalCost: number };
@@ -296,26 +294,6 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
             >
               <div className={props.qualityMode === 'advanced' ? 'i-ph:lightning text-xl' : 'i-ph:gauge text-xl'} />
               <span className="text-xs">{props.qualityMode === 'advanced' ? 'Advanced' : 'Medium'}</span>
-            </IconButton>
-            {/* Facade/Coder mode toggle */}
-            <IconButton
-              title={props.viewMode === 'facade' ? 'Switch to Coder Mode' : 'Switch to Facade Mode'}
-              className={classNames(
-                'transition-all flex items-center gap-1 px-1.5',
-                props.viewMode === 'facade'
-                  ? '!bg-bolt-elements-item-backgroundAccent !text-bolt-elements-item-contentAccent'
-                  : 'bg-bolt-elements-item-backgroundDefault text-bolt-elements-item-contentDefault',
-              )}
-              onClick={() => {
-                props.setViewMode?.(props.viewMode === 'facade' ? 'coder' : 'facade');
-              }}
-            >
-              <div className={props.viewMode === 'facade' ? 'i-ph:eye-slash text-xl' : 'i-ph:code text-xl'} />
-              {props.viewMode === 'facade' ? (
-                <span className="text-xs">Facade</span>
-              ) : (
-                <span className="text-xs">Coder</span>
-              )}
             </IconButton>
           </div>
           <div className="flex items-center gap-3">

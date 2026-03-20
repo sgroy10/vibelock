@@ -32,7 +32,10 @@ import { ChatBox } from './ChatBox';
 import type { DesignScheme } from '~/types/design-scheme';
 import type { ElementInfo } from '~/components/workbench/Inspector';
 import LlmErrorAlert from './LLMApiAlert';
-import { FacadeView } from './FacadeView';
+import { BuildProgress } from './BuildProgress';
+import { devMode } from '~/lib/stores/devMode';
+import { computed } from 'nanostores';
+import { workbenchStore } from '~/lib/stores/workbench';
 
 const TEXTAREA_MIN_HEIGHT = 76;
 
@@ -82,8 +85,6 @@ interface BaseChatProps {
   setSelectedElement?: (element: ElementInfo | null) => void;
   addToolResult?: ({ toolCallId, result }: { toolCallId: string; result: any }) => void;
   onWebSearchResult?: (result: string) => void;
-  viewMode?: 'facade' | 'coder';
-  setViewMode?: (mode: 'facade' | 'coder') => void;
   qualityMode?: 'medium' | 'advanced';
   setQualityMode?: (mode: 'medium' | 'advanced') => void;
   tokenUsage?: { totalInput: number; totalOutput: number; totalCost: number };
@@ -105,8 +106,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       input = '',
       enhancingPrompt,
       handleInputChange,
-
-      // promptEnhanced,
       enhancePrompt,
       sendMessage,
       handleStop,
@@ -137,8 +136,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         throw new Error('addToolResult not implemented');
       },
       onWebSearchResult,
-      viewMode = 'facade',
-      setViewMode,
       qualityMode = 'medium',
       setQualityMode,
       tokenUsage,
@@ -151,11 +148,31 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const [isModelSettingsCollapsed, setIsModelSettingsCollapsed] = useState(false);
     const [isListening, setIsListening] = useState(false);
     const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
-    const [transcript, setTranscript] = useState('');
+    const [, setTranscript] = useState('');
     const [isModelLoading, setIsModelLoading] = useState<string | undefined>('all');
     const [progressAnnotations, setProgressAnnotations] = useState<ProgressAnnotation[]>([]);
     const expoUrl = useStore(expoUrlAtom);
     const [qrModalOpen, setQrModalOpen] = useState(false);
+    const isDevMode = useStore(devMode);
+    const hasPreview = useStore(computed(workbenchStore.previews, (previews) => previews.length > 0));
+
+    // Drawer state: 'collapsed' = input only, 'open' = messages + input
+    const [drawerState, setDrawerState] = useState<'collapsed' | 'open'>('collapsed');
+    const drawerHeight = drawerState === 'collapsed' ? 140 : Math.min(window?.innerHeight * 0.55 || 440, 520);
+
+    // Auto-expand drawer when user sends first message
+    useEffect(() => {
+      if (chatStarted && messages && messages.length > 0) {
+        setDrawerState('open');
+      }
+    }, [chatStarted]);
+
+    // Auto-collapse drawer when preview becomes ready (non-streaming)
+    useEffect(() => {
+      if (hasPreview && !isStreaming) {
+        setDrawerState('collapsed');
+      }
+    }, [hasPreview, isStreaming]);
 
     useEffect(() => {
       if (expoUrl) {
@@ -171,9 +188,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         setProgressAnnotations(progressList);
       }
     }, [data]);
-    useEffect(() => {
-      console.log(transcript);
-    }, [transcript]);
 
     useEffect(() => {
       onStreamingChange?.(isStreaming);
@@ -256,7 +270,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         console.error('Error loading dynamic models for:', providerName, error);
       }
 
-      // Only update models for the specific provider
       setModelList((prevModels) => {
         const otherModels = prevModels.filter((model) => model.provider !== providerName);
         return [...otherModels, ...providerModels];
@@ -284,11 +297,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         setSelectedElement?.(null);
 
         if (recognition) {
-          recognition.abort(); // Stop current recognition
-          setTranscript(''); // Clear transcript
+          recognition.abort();
+          setTranscript('');
           setIsListening(false);
 
-          // Clear the input by triggering handleInputChange with empty value
           if (handleInputChange) {
             const syntheticEvent = {
               target: { value: '' },
@@ -351,6 +363,191 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       }
     };
 
+    const chatBoxProps = {
+      qualityMode,
+      setQualityMode,
+      tokenUsage,
+      isModelSettingsCollapsed,
+      setIsModelSettingsCollapsed,
+      provider,
+      setProvider,
+      providerList: providerList || (PROVIDER_LIST as ProviderInfo[]),
+      model,
+      setModel,
+      modelList,
+      apiKeys,
+      isModelLoading,
+      onApiKeysChange,
+      uploadedFiles,
+      setUploadedFiles,
+      imageDataList,
+      setImageDataList,
+      textareaRef,
+      input,
+      handleInputChange,
+      handlePaste,
+      TEXTAREA_MIN_HEIGHT,
+      TEXTAREA_MAX_HEIGHT,
+      isStreaming,
+      handleStop,
+      handleSendMessage,
+      enhancingPrompt,
+      enhancePrompt,
+      isListening,
+      startListening,
+      stopListening,
+      chatStarted,
+      exportChat,
+      qrModalOpen,
+      setQrModalOpen,
+      handleFileUpload,
+      chatMode,
+      setChatMode,
+      designScheme,
+      setDesignScheme,
+      selectedElement,
+      setSelectedElement,
+      onWebSearchResult,
+    };
+
+    const alertsBlock = (
+      <div className="flex flex-col gap-2">
+        {deployAlert && (
+          <DeployChatAlert
+            alert={deployAlert}
+            clearAlert={() => clearDeployAlert?.()}
+            postMessage={(message: string | undefined) => {
+              sendMessage?.({} as any, message);
+              clearSupabaseAlert?.();
+            }}
+          />
+        )}
+        {supabaseAlert && (
+          <SupabaseChatAlert
+            alert={supabaseAlert}
+            clearAlert={() => clearSupabaseAlert?.()}
+            postMessage={(message) => {
+              sendMessage?.({} as any, message);
+              clearSupabaseAlert?.();
+            }}
+          />
+        )}
+        {actionAlert && (
+          <ChatAlert
+            alert={actionAlert}
+            clearAlert={() => clearAlert?.()}
+            postMessage={(message) => {
+              sendMessage?.({} as any, message);
+              clearAlert?.();
+            }}
+          />
+        )}
+        {llmErrorAlert && <LlmErrorAlert alert={llmErrorAlert} clearAlert={() => clearLlmErrorAlert?.()} />}
+      </div>
+    );
+
+    /* STAGE MODE (Preview-first, default layout) */
+    if (chatStarted && !isDevMode) {
+      const showBuildProgress = isStreaming && !hasPreview;
+
+      const baseChat = (
+        <div
+          ref={ref}
+          className={classNames(styles.BaseChat, 'relative flex flex-col h-full w-full overflow-hidden')}
+          data-chat-visible={showChat}
+        >
+          <ClientOnly>{() => <Menu />}</ClientOnly>
+
+          {/* Stage Area: Workbench in stageMode fills from header to drawer */}
+          <div className="flex-1 relative">
+            <ClientOnly>
+              {() => (
+                <Workbench
+                  chatStarted={chatStarted}
+                  isStreaming={isStreaming}
+                  stageMode={true}
+                  drawerHeight={drawerHeight}
+                  setSelectedElement={setSelectedElement}
+                />
+              )}
+            </ClientOnly>
+
+            {/* Build progress overlay */}
+            {showBuildProgress && (
+              <div
+                className="fixed left-0 right-0 z-20 flex items-center justify-center pointer-events-none"
+                style={{
+                  top: 'calc(var(--header-height) + 0.25rem)',
+                  bottom: `${drawerHeight + 6}px`,
+                }}
+              >
+                <BuildProgress messages={messages || []} isStreaming={isStreaming} />
+              </div>
+            )}
+          </div>
+
+          {/* Chat Drawer — fixed at bottom */}
+          <div
+            className="fixed bottom-0 left-0 right-0 z-30 flex flex-col"
+            style={{
+              height: `${drawerHeight}px`,
+              transition: 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              background: 'var(--bolt-elements-bg-depth-1, #0a0a0b)',
+              borderTop: '1px solid var(--bolt-elements-borderColor, rgba(255,255,255,0.06))',
+            }}
+          >
+            {/* Drawer Handle */}
+            <div
+              className="flex items-center justify-center py-2 cursor-pointer shrink-0 hover:bg-bolt-elements-background-depth-2/50 transition-colors"
+              onClick={() => setDrawerState(drawerState === 'collapsed' ? 'open' : 'collapsed')}
+            >
+              <div
+                className="w-8 h-1 rounded-full transition-colors"
+                style={{ background: 'rgba(255, 255, 255, 0.12)' }}
+              />
+            </div>
+
+            {/* Messages area (only visible when drawer is open) */}
+            {drawerState === 'open' && (
+              <div className="flex-1 overflow-y-auto px-4 modern-scrollbar">
+                <ClientOnly>
+                  {() => (
+                    <Messages
+                      className="flex flex-col w-full flex-1 max-w-chat pb-2 mx-auto z-1"
+                      messages={messages}
+                      isStreaming={isStreaming}
+                      append={append}
+                      chatMode={chatMode}
+                      setChatMode={setChatMode}
+                      provider={provider}
+                      model={model}
+                      addToolResult={addToolResult}
+                    />
+                  )}
+                </ClientOnly>
+              </div>
+            )}
+
+            {/* Alerts */}
+            <div className="px-4">{alertsBlock}</div>
+            {progressAnnotations && (
+              <div className="px-4">
+                <ProgressCompilation data={progressAnnotations} />
+              </div>
+            )}
+
+            {/* Chat Input */}
+            <div className="px-4 pb-3 shrink-0">
+              <ChatBox {...chatBoxProps} />
+            </div>
+          </div>
+        </div>
+      );
+
+      return <Tooltip.Provider delayDuration={200}>{baseChat}</Tooltip.Provider>;
+    }
+
+    /* CLASSIC MODE (Dev mode or intro screen) */
     const baseChat = (
       <div
         ref={ref}
@@ -450,10 +647,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       return null;
                     }
 
-                    if (viewMode === 'facade') {
-                      return <FacadeView messages={messages || []} isStreaming={isStreaming} />;
-                    }
-
                     return (
                       <Messages
                         className="flex flex-col w-full flex-1 max-w-chat pb-4 mx-auto z-1"
@@ -476,88 +669,9 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   'sticky bottom-2': chatStarted,
                 })}
               >
-                <div className="flex flex-col gap-2">
-                  {deployAlert && (
-                    <DeployChatAlert
-                      alert={deployAlert}
-                      clearAlert={() => clearDeployAlert?.()}
-                      postMessage={(message: string | undefined) => {
-                        sendMessage?.({} as any, message);
-                        clearSupabaseAlert?.();
-                      }}
-                    />
-                  )}
-                  {supabaseAlert && (
-                    <SupabaseChatAlert
-                      alert={supabaseAlert}
-                      clearAlert={() => clearSupabaseAlert?.()}
-                      postMessage={(message) => {
-                        sendMessage?.({} as any, message);
-                        clearSupabaseAlert?.();
-                      }}
-                    />
-                  )}
-                  {actionAlert && (
-                    <ChatAlert
-                      alert={actionAlert}
-                      clearAlert={() => clearAlert?.()}
-                      postMessage={(message) => {
-                        sendMessage?.({} as any, message);
-                        clearAlert?.();
-                      }}
-                    />
-                  )}
-                  {llmErrorAlert && <LlmErrorAlert alert={llmErrorAlert} clearAlert={() => clearLlmErrorAlert?.()} />}
-                </div>
+                {alertsBlock}
                 {progressAnnotations && <ProgressCompilation data={progressAnnotations} />}
-                <ChatBox
-                  viewMode={viewMode}
-                  setViewMode={setViewMode}
-                  qualityMode={qualityMode}
-                  setQualityMode={setQualityMode}
-                  tokenUsage={tokenUsage}
-                  isModelSettingsCollapsed={isModelSettingsCollapsed}
-                  setIsModelSettingsCollapsed={setIsModelSettingsCollapsed}
-                  provider={provider}
-                  setProvider={setProvider}
-                  providerList={providerList || (PROVIDER_LIST as ProviderInfo[])}
-                  model={model}
-                  setModel={setModel}
-                  modelList={modelList}
-                  apiKeys={apiKeys}
-                  isModelLoading={isModelLoading}
-                  onApiKeysChange={onApiKeysChange}
-                  uploadedFiles={uploadedFiles}
-                  setUploadedFiles={setUploadedFiles}
-                  imageDataList={imageDataList}
-                  setImageDataList={setImageDataList}
-                  textareaRef={textareaRef}
-                  input={input}
-                  handleInputChange={handleInputChange}
-                  handlePaste={handlePaste}
-                  TEXTAREA_MIN_HEIGHT={TEXTAREA_MIN_HEIGHT}
-                  TEXTAREA_MAX_HEIGHT={TEXTAREA_MAX_HEIGHT}
-                  isStreaming={isStreaming}
-                  handleStop={handleStop}
-                  handleSendMessage={handleSendMessage}
-                  enhancingPrompt={enhancingPrompt}
-                  enhancePrompt={enhancePrompt}
-                  isListening={isListening}
-                  startListening={startListening}
-                  stopListening={stopListening}
-                  chatStarted={chatStarted}
-                  exportChat={exportChat}
-                  qrModalOpen={qrModalOpen}
-                  setQrModalOpen={setQrModalOpen}
-                  handleFileUpload={handleFileUpload}
-                  chatMode={chatMode}
-                  setChatMode={setChatMode}
-                  designScheme={designScheme}
-                  setDesignScheme={setDesignScheme}
-                  selectedElement={selectedElement}
-                  setSelectedElement={setSelectedElement}
-                  onWebSearchResult={onWebSearchResult}
-                />
+                <ChatBox {...chatBoxProps} />
               </div>
             </StickToBottom>
             <div className="flex flex-col justify-center">

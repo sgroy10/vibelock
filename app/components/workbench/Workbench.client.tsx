@@ -31,6 +31,8 @@ import { streamingState } from '~/lib/stores/streaming';
 interface WorkspaceProps {
   chatStarted?: boolean;
   isStreaming?: boolean;
+  stageMode?: boolean;
+  drawerHeight?: number;
   metadata?: {
     gitUrl?: string;
   };
@@ -282,6 +284,8 @@ export const Workbench = memo(
   ({
     chatStarted,
     isStreaming,
+    stageMode,
+    drawerHeight = 140,
     metadata: _metadata,
     updateChatMestaData: _updateChatMestaData,
     setSelectedElement,
@@ -306,6 +310,14 @@ export const Workbench = memo(
     const streaming = useStore(streamingState);
     const { exportChat } = useChatHistory();
     const [isSyncing, setIsSyncing] = useState(false);
+
+    // Stage mode: auto-show workbench and force preview view
+    useEffect(() => {
+      if (stageMode && chatStarted) {
+        workbenchStore.showWorkbench.set(true);
+        workbenchStore.currentView.set('preview');
+      }
+    }, [stageMode, chatStarted]);
 
     const setSelectedView = (view: WorkbenchViewType) => {
       workbenchStore.currentView.set(view);
@@ -369,6 +381,50 @@ export const Workbench = memo(
         setIsSyncing(false);
       }
     }, []);
+
+    // Stage mode: full-width preview only, no toolbar
+    if (stageMode && chatStarted) {
+      return (
+        <div
+          className="fixed left-2 right-2 z-0"
+          style={{
+            top: 'calc(var(--header-height) + 0.25rem)',
+            bottom: `${drawerHeight + 6}px`,
+            transition: 'bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          }}
+        >
+          <div
+            className="h-full rounded-xl overflow-hidden border border-bolt-elements-borderColor"
+            style={{
+              background: 'var(--bolt-elements-bg-depth-2, #131316)',
+            }}
+          >
+            {hasPreview ? (
+              <div className="relative h-full">
+                <Preview setSelectedElement={setSelectedElement} />
+              </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center gap-4">
+                <div
+                  className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                  style={{ background: 'rgba(255, 107, 44, 0.08)' }}
+                >
+                  <div className="i-ph:monitor text-3xl" style={{ color: '#3F3F46' }} />
+                </div>
+                <div className="text-center">
+                  <div className="text-sm font-medium" style={{ color: '#52525B' }}>
+                    Your app preview will appear here
+                  </div>
+                  <div className="text-xs mt-1" style={{ color: '#3F3F46' }}>
+                    Describe what you want to build below
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
 
     return (
       chatStarted && (
