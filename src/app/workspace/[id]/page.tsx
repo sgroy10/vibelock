@@ -298,6 +298,50 @@ export default function WorkspacePage() {
             </div>
           )}
 
+          {/* Download code */}
+          {previewUrl && (
+            <button
+              onClick={async () => {
+                const wc = wcRef.current;
+                if (!wc) return;
+                try {
+                  // Read key files and create a simple download
+                  const files: Record<string, string> = {};
+                  const readDir = async (path: string) => {
+                    try {
+                      const entries = await wc.fs.readdir(path, { withFileTypes: true });
+                      for (const entry of entries) {
+                        const fullPath = path === "." ? entry.name : `${path}/${entry.name}`;
+                        if (entry.name === "node_modules" || entry.name === ".git") continue;
+                        if (entry.isDirectory()) {
+                          await readDir(fullPath);
+                        } else {
+                          try {
+                            const content = await wc.fs.readFile(fullPath, "utf-8");
+                            files[fullPath] = content;
+                          } catch { /* skip binary files */ }
+                        }
+                      }
+                    } catch { /* skip unreadable dirs */ }
+                  };
+                  await readDir(".");
+                  const blob = new Blob([JSON.stringify(files, null, 2)], { type: "application/json" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = "vibelock-project.json";
+                  a.click();
+                  URL.revokeObjectURL(url);
+                } catch (err) {
+                  console.error("Download failed:", err);
+                }
+              }}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors border border-gray-200"
+            >
+              ⬇ Download
+            </button>
+          )}
+
           {/* Open in new tab */}
           {previewUrl && (
             <a
@@ -306,8 +350,7 @@ export default function WorkspacePage() {
               rel="noopener noreferrer"
               className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors border border-gray-200"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-              New tab
+              ↗ New tab
             </a>
           )}
 

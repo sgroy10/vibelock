@@ -38,14 +38,18 @@ export default function Home() {
             VibeLock
           </span>
         </div>
-        <a
-          href="https://github.com/sgroy10/vibelock"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-        >
-          GitHub
-        </a>
+        <div className="flex items-center gap-3">
+          <a href="/login" className="text-xs text-gray-500 hover:text-gray-700 transition-colors">
+            Sign in
+          </a>
+          <a
+            href="/signup"
+            className="px-3 py-1.5 rounded-lg text-xs font-medium text-white shadow-sm"
+            style={{ background: "linear-gradient(135deg, #FF6B2C, #FF8F3C)" }}
+          >
+            Sign up
+          </a>
+        </div>
       </header>
 
       {/* Hero */}
