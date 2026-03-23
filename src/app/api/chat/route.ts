@@ -139,19 +139,56 @@ Required design patterns:
 - Empty states: Show a friendly message with emoji when lists are empty.
 - Page background should be bg-gray-50 or bg-white. NEVER dark backgrounds.
 
-## DATA PERSISTENCE
-Every app you build MUST save data so it persists. Use localStorage for the preview:
-- Use localStorage.getItem() and localStorage.setItem() for reading/writing data
-- Always initialize state from localStorage on component mount
-- Save to localStorage whenever data changes (useEffect)
-- Example pattern:
-  const [items, setItems] = useState(() => {
-    const saved = localStorage.getItem('items');
-    return saved ? JSON.parse(saved) : [];
-  });
-  useEffect(() => { localStorage.setItem('items', JSON.stringify(items)); }, [items]);
+## DATABASE & AUTH (Supabase)
+When the user asks for a database, auth, login, signup, or data storage, use Supabase.
+The user's Supabase credentials are available as environment variables:
+- import.meta.env.VITE_SUPABASE_URL
+- import.meta.env.VITE_SUPABASE_ANON_KEY
 
-This ensures the user's data survives page refreshes in the preview.
+Add @supabase/supabase-js to package.json dependencies and create a supabase client:
+
+<vibelock-file path="src/lib/supabase.js">
+import { createClient } from '@supabase/supabase-js'
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+export const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null
+</vibelock-file>
+
+When Supabase is available, generate REAL auth and database code:
+- Auth: supabase.auth.signUp(), signInWithPassword(), signOut(), getSession()
+- Database: supabase.from('table').select(), insert(), update(), delete()
+- Storage: supabase.storage.from('bucket').upload(), getPublicUrl()
+- Real-time: supabase.channel().on('postgres_changes', ...).subscribe()
+
+If Supabase credentials are NOT available (no env vars), fall back to localStorage:
+- Use localStorage.getItem/setItem for data
+- Mock auth with simple email/password stored in localStorage
+- Tell the user: "Connect your Supabase project for real auth and database"
+
+## API INTEGRATIONS
+When the user asks for AI features (analyze, generate, chat), payment, or external APIs:
+- Check if the relevant API key is in environment variables (import.meta.env.VITE_OPENAI_API_KEY, etc.)
+- If available, generate real API call code using fetch()
+- If NOT available, generate the code structure but show a message: "Add your API key to enable this feature"
+- For OpenAI: use fetch to https://api.openai.com/v1/chat/completions with the key from env
+- For Stripe: use @stripe/stripe-js for frontend payment forms
+- ALWAYS handle API errors gracefully with try/catch and user-friendly messages
+
+## FILE HANDLING
+When the user asks for file upload, processing, or export:
+- File upload: Use <input type="file"> with FileReader API
+- CSV parsing: Use papaparse npm package
+- Excel export: Use xlsx npm package
+- PDF generation: Use @react-pdf/renderer or jspdf
+- Image processing: Use HTML Canvas API
+- ALWAYS add the required npm packages to package.json
+
+## DATA PERSISTENCE (fallback)
+When Supabase is not connected, use localStorage:
+- localStorage.getItem/setItem for simple data
+- IndexedDB (via idb npm package) for larger datasets
+- Always initialize state from storage on mount
+- Save on every change
 
 ## ERROR FIXING
 When you receive an error message:
@@ -162,19 +199,31 @@ When you receive an error message:
 5. Each shell command in its OWN <vibelock-shell> tag.`;
 
 export async function POST(req: NextRequest) {
-  const { messages, constraints } = await req.json();
+  const { messages, constraints, secrets } = await req.json();
 
   if (!OPENROUTER_API_KEY) {
     return new Response("OpenRouter API key not configured", { status: 500 });
   }
 
-  // Inject SpecLock constraints into system prompt
   let systemPrompt = SYSTEM_PROMPT;
+
+  // Inject available services info
+  const services: string[] = [];
+  if (secrets?.supabaseUrl) services.push("Supabase (auth + database + storage) is CONNECTED. Generate real Supabase code.");
+  if (secrets?.openaiKey) services.push("OpenAI API key is available. Generate real AI API calls using fetch to OpenAI.");
+  if (secrets?.stripeKey) services.push("Stripe key is available. Generate real Stripe payment integration.");
+  if (services.length > 0) {
+    systemPrompt += `\n\n## CONNECTED SERVICES\n${services.join("\n")}\nGenerate REAL integration code for these services, not mocks.\n`;
+  } else {
+    systemPrompt += `\n\n## NO SERVICES CONNECTED\nNo Supabase or API keys are connected. Use localStorage for data and mock auth. Tell the user they can connect Supabase/APIs for full functionality.\n`;
+  }
+
+  // Inject SpecLock constraints
   if (constraints && constraints.length > 0) {
     const constraintBlock = constraints
       .map((c: string, i: number) => `${i + 1}. 🔒 ${c}`)
       .join("\n");
-    systemPrompt += `\n\n## ACTIVE CONSTRAINTS (SpecLock)\nThe following constraints are LOCKED for this project. You MUST follow them in ALL code you generate:\n${constraintBlock}\n`;
+    systemPrompt += `\n\n## ACTIVE CONSTRAINTS (SpecLock)\nThe following constraints are LOCKED:\n${constraintBlock}\n`;
   }
 
   const openRouterMessages = [

@@ -96,12 +96,25 @@ async function runShell(
   }
 }
 
+/** Write a .env file to WebContainer with user's API keys */
+export async function injectEnvVars(
+  wc: WebContainer,
+  envVars: Record<string, string>
+): Promise<void> {
+  if (Object.keys(envVars).length === 0) return;
+  const envContent = Object.entries(envVars)
+    .map(([k, v]) => `${k}=${v}`)
+    .join("\n");
+  await wc.fs.writeFile(".env", envContent);
+}
+
 /** Execute a batch of operations sequentially */
 export async function executeOps(
   wc: WebContainer,
   ops: VibeLockOp[],
   onOutput?: (data: string) => void,
-  onProgress?: (phase: string, detail: string) => void
+  onProgress?: (phase: string, detail: string) => void,
+  envVars?: Record<string, string>
 ): Promise<{ results: ExecutionResult[]; errors: ExecutionResult[] }> {
   const results: ExecutionResult[] = [];
   const errors: ExecutionResult[] = [];
@@ -109,6 +122,12 @@ export async function executeOps(
   // First: write all files
   const fileOps = ops.filter((op): op is FileOp => op.type === "file");
   const shellOps = ops.filter((op): op is ShellOp => op.type === "shell");
+
+  // Inject env vars before writing files
+  if (envVars && Object.keys(envVars).length > 0) {
+    await injectEnvVars(wc, envVars);
+    onProgress?.("writing", "Injecting API keys...");
+  }
 
   if (fileOps.length > 0) {
     onProgress?.("writing", `Creating ${fileOps.length} files...`);

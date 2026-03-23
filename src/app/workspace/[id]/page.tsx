@@ -7,6 +7,7 @@ import { getWebContainer } from "@/lib/webcontainer";
 import { StreamParser, type VibeLockOp } from "@/lib/agent/parser";
 import { detectLanguage, SUPPORTED_LANGUAGES, type Language } from "@/lib/language";
 import { detectConstraints, formatConstraintsForPrompt, type Constraint } from "@/lib/speclock";
+import { useSecretsStore } from "@/stores/secrets";
 
 /** Strip vibelock tags AND any code content from display text */
 function cleanDisplay(text: string): string {
@@ -50,6 +51,9 @@ export default function WorkspacePage() {
   const [input, setInput] = useState("");
   const [detectedLang, setDetectedLang] = useState<Language>(SUPPORTED_LANGUAGES[0]);
   const [constraints, setConstraints] = useState<Constraint[]>([]);
+  const [showSecrets, setShowSecrets] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const secrets = useSecretsStore();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const wcRef = useRef<WebContainer | null>(null);
@@ -117,6 +121,11 @@ export default function WorkspacePage() {
           messages: chatMessages,
           projectId,
           constraints: constraints.map((c) => c.text),
+          secrets: {
+            supabaseUrl: secrets.supabaseUrl || null,
+            openaiKey: secrets.openaiKey ? true : null,
+            stripeKey: secrets.stripeKey ? true : null,
+          },
         }),
       });
       if (!res.ok) throw new Error(`Chat failed: ${res.status}`);
@@ -222,7 +231,8 @@ export default function WorkspacePage() {
     const { errors } = await executeOps(
       wc, ops,
       (data) => appendTerminal(data),
-      (p, detail) => setPhase(p as typeof phase, detail)
+      (p, detail) => setPhase(p as typeof phase, detail),
+      secrets.getAllEnvVars()
     );
 
     if (errors.length === 0) {
@@ -461,8 +471,88 @@ export default function WorkspacePage() {
             </div>
           </div>
 
+          {/* Secrets Panel (collapsible) */}
+          {showSecrets && (
+            <div className="px-4 py-3 border-t border-gray-100 bg-gray-50 text-xs space-y-2">
+              <div className="font-medium text-gray-700 mb-2">🔑 Connect Services</div>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  placeholder="Supabase URL"
+                  value={secrets.supabaseUrl}
+                  onChange={(e) => secrets.setSupabase(e.target.value, secrets.supabaseAnonKey)}
+                  className="px-2 py-1.5 rounded-lg border border-gray-200 text-gray-900 bg-white outline-none focus:ring-1 focus:ring-orange-500"
+                />
+                <input
+                  placeholder="Supabase Anon Key"
+                  value={secrets.supabaseAnonKey}
+                  onChange={(e) => secrets.setSupabase(secrets.supabaseUrl, e.target.value)}
+                  className="px-2 py-1.5 rounded-lg border border-gray-200 text-gray-900 bg-white outline-none focus:ring-1 focus:ring-orange-500"
+                />
+                <input
+                  placeholder="OpenAI API Key"
+                  type="password"
+                  value={secrets.openaiKey}
+                  onChange={(e) => secrets.setOpenaiKey(e.target.value)}
+                  className="px-2 py-1.5 rounded-lg border border-gray-200 text-gray-900 bg-white outline-none focus:ring-1 focus:ring-orange-500"
+                />
+                <input
+                  placeholder="Stripe Public Key"
+                  type="password"
+                  value={secrets.stripeKey}
+                  onChange={(e) => secrets.setStripeKey(e.target.value)}
+                  className="px-2 py-1.5 rounded-lg border border-gray-200 text-gray-900 bg-white outline-none focus:ring-1 focus:ring-orange-500"
+                />
+              </div>
+              <div className="text-gray-400">Keys are stored locally and never sent to our servers.</div>
+            </div>
+          )}
+
           {/* Input */}
           <div className="px-4 pb-4 pt-2 border-t border-gray-100 shrink-0">
+            {/* Toolbar */}
+            <div className="flex items-center gap-1 mb-2">
+              <button
+                onClick={() => setShowSecrets(!showSecrets)}
+                className={cn(
+                  "px-2 py-1 rounded-lg text-xs transition-colors",
+                  showSecrets ? "bg-orange-50 text-orange-600" : "text-gray-400 hover:text-gray-600 hover:bg-gray-50"
+                )}
+              >
+                🔑 {secrets.supabaseUrl ? "Connected" : "Connect"}
+              </button>
+              <button
+                onClick={() => {
+                  if (isListening) return;
+                  if (!("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
+                    alert("Speech recognition not supported in this browser");
+                    return;
+                  }
+                  const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+                  const recognition = new SR();
+                  recognition.continuous = false;
+                  recognition.interimResults = true;
+                  recognition.lang = detectedLang.code === "hi" ? "hi-IN" : detectedLang.code === "gu" ? "gu-IN" : "en-US";
+
+                  setIsListening(true);
+                  recognition.onresult = (event: any) => {
+                    const transcript = Array.from(event.results)
+                      .map((r: any) => r[0].transcript)
+                      .join("");
+                    setInput(transcript);
+                  };
+                  recognition.onerror = () => setIsListening(false);
+                  recognition.onend = () => setIsListening(false);
+                  recognition.start();
+                }}
+                className={cn(
+                  "px-2 py-1 rounded-lg text-xs transition-colors",
+                  isListening ? "bg-red-50 text-red-600 animate-pulse" : "text-gray-400 hover:text-gray-600 hover:bg-gray-50"
+                )}
+              >
+                🎤 {isListening ? "Listening..." : "Speak"}
+              </button>
+            </div>
+
             <div className="relative rounded-xl overflow-hidden bg-white border border-gray-200">
               <textarea
                 ref={textareaRef}
@@ -474,7 +564,7 @@ export default function WorkspacePage() {
                     sendMessage();
                   }
                 }}
-                placeholder={isBusy ? "Building..." : "Describe what you want to build or change...\n(किसी भी भाषा में लिख सकते हैं)"}
+                placeholder={isBusy ? "Building..." : "Describe what you want to build or change...\n(किसी भी भाषा में लिख सकते हैं — या बोलें 🎤)"}
                 disabled={isBusy}
                 className="w-full bg-transparent text-gray-900 placeholder:text-gray-400 px-4 py-3 pr-20 text-sm resize-none outline-none disabled:opacity-50"
                 style={{ minHeight: "80px" }}

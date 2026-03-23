@@ -19,6 +19,7 @@
   "dependencies": {
     "@ai-sdk/openai-compatible": "^0.2.0",
     "@prisma/client": "^6.5.0",
+    "@supabase/supabase-js": "^2.99.3",
     "@webcontainer/api": "^1.6.1",
     "ai": "^4.3.0",
     "better-auth": "^1.2.0",
