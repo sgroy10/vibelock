@@ -148,14 +148,23 @@ When you receive an error message:
 5. Each shell command in its OWN <vibelock-shell> tag.`;
 
 export async function POST(req: NextRequest) {
-  const { messages } = await req.json();
+  const { messages, constraints } = await req.json();
 
   if (!OPENROUTER_API_KEY) {
     return new Response("OpenRouter API key not configured", { status: 500 });
   }
 
+  // Inject SpecLock constraints into system prompt
+  let systemPrompt = SYSTEM_PROMPT;
+  if (constraints && constraints.length > 0) {
+    const constraintBlock = constraints
+      .map((c: string, i: number) => `${i + 1}. 🔒 ${c}`)
+      .join("\n");
+    systemPrompt += `\n\n## ACTIVE CONSTRAINTS (SpecLock)\nThe following constraints are LOCKED for this project. You MUST follow them in ALL code you generate:\n${constraintBlock}\n`;
+  }
+
   const openRouterMessages = [
-    { role: "system", content: SYSTEM_PROMPT },
+    { role: "system", content: systemPrompt },
     ...messages.map((m: { role: string; content: string }) => ({
       role: m.role,
       content: m.content,

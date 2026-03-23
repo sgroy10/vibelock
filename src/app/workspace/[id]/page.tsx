@@ -6,6 +6,7 @@ import { cn } from "@/lib/cn";
 import { getWebContainer } from "@/lib/webcontainer";
 import { StreamParser, type VibeLockOp } from "@/lib/agent/parser";
 import { detectLanguage, SUPPORTED_LANGUAGES, type Language } from "@/lib/language";
+import { detectConstraints, formatConstraintsForPrompt, type Constraint } from "@/lib/speclock";
 
 /** Strip vibelock tags AND any code content from display text */
 function cleanDisplay(text: string): string {
@@ -48,6 +49,7 @@ export default function WorkspacePage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [detectedLang, setDetectedLang] = useState<Language>(SUPPORTED_LANGUAGES[0]);
+  const [constraints, setConstraints] = useState<Constraint[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const wcRef = useRef<WebContainer | null>(null);
@@ -111,7 +113,11 @@ export default function WorkspacePage() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: chatMessages, projectId }),
+        body: JSON.stringify({
+          messages: chatMessages,
+          projectId,
+          constraints: constraints.map((c) => c.text),
+        }),
       });
       if (!res.ok) throw new Error(`Chat failed: ${res.status}`);
       const reader = res.body?.getReader();
@@ -153,6 +159,18 @@ export default function WorkspacePage() {
     // Detect language from user input
     const lang = detectLanguage(content);
     setDetectedLang(lang);
+
+    // Detect constraints (SpecLock)
+    const newConstraints = detectConstraints(content);
+    if (newConstraints.length > 0) {
+      const newLocks = newConstraints.map((text) => ({
+        id: `lock_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        text,
+        source: "auto" as const,
+        createdAt: Date.now(),
+      }));
+      setConstraints((prev) => [...prev, ...newLocks]);
+    }
 
     const userMsg: Message = { role: "user", content: content.trim() };
     const updatedMessages = [...messages, userMsg];
@@ -297,6 +315,16 @@ export default function WorkspacePage() {
           {detectedLang.code !== "en" && (
             <span className="px-2 py-0.5 rounded text-xs bg-orange-50 text-orange-600 border border-orange-100">
               {detectedLang.nativeName}
+            </span>
+          )}
+
+          {/* SpecLock indicator */}
+          {constraints.length > 0 && (
+            <span
+              className="px-2 py-0.5 rounded text-xs bg-green-50 text-green-700 border border-green-100 cursor-help"
+              title={constraints.map((c) => `🔒 ${c.text}`).join("\n")}
+            >
+              🔒 {constraints.length} locked
             </span>
           )}
 
