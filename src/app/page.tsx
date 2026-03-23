@@ -24,24 +24,17 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-white">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 h-14 border-b border-[var(--vl-border)]">
+      <header className="flex items-center justify-between px-6 h-14 border-b border-gray-100">
         <div className="flex items-center gap-2">
           <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-lg font-bold"
-            style={{ background: "linear-gradient(135deg, #FF6B2C, #FF8F3C)", color: "#fff" }}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-lg font-bold text-white"
+            style={{ background: "linear-gradient(135deg, #FF6B2C, #FF8F3C)" }}
           >
             V
           </div>
-          <span
-            className="text-base font-semibold tracking-tight"
-            style={{
-              background: "linear-gradient(135deg, #FF8F3C, #FF6B2C)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-            }}
-          >
+          <span className="text-base font-semibold tracking-tight text-gray-900">
             VibeLock
           </span>
         </div>
@@ -49,7 +42,7 @@ export default function Home() {
           href="https://github.com/sgroy10/vibelock"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-xs text-[var(--vl-text-muted)] hover:text-[var(--vl-text-secondary)] transition-colors"
+          className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
         >
           GitHub
         </a>
@@ -59,19 +52,12 @@ export default function Home() {
       <main className="flex-1 flex flex-col items-center justify-center px-4">
         <div className="max-w-2xl w-full text-center">
           {/* Badge */}
-          <div
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium mb-6"
-            style={{
-              background: "rgba(34, 197, 94, 0.08)",
-              border: "1px solid rgba(34, 197, 94, 0.15)",
-              color: "#22C55E",
-            }}
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E]" />
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium mb-6 bg-green-50 text-green-700 border border-green-100">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
             Protected by SpecLock
           </div>
 
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-4 leading-tight tracking-tight">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-4 leading-tight tracking-tight text-gray-900">
             Build apps in{" "}
             <span
               style={{
@@ -84,20 +70,13 @@ export default function Home() {
             </span>
           </h1>
 
-          <p className="text-base lg:text-lg text-[var(--vl-text-secondary)] max-w-lg mx-auto mb-10">
+          <p className="text-base lg:text-lg text-gray-500 max-w-lg mx-auto mb-10">
             Describe what you want — in Hindi, Gujarati, Arabic, Spanish, or any language.
             VibeLock builds it live with AI.
           </p>
 
           {/* Prompt Input */}
-          <div
-            className="relative rounded-xl overflow-hidden mb-8"
-            style={{
-              background: "var(--vl-bg-card)",
-              border: "1px solid var(--vl-border)",
-              boxShadow: "0 0 40px rgba(255, 107, 44, 0.04)",
-            }}
-          >
+          <div className="relative rounded-2xl overflow-hidden mb-8 bg-white border border-gray-200 shadow-lg shadow-gray-100/50">
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -108,17 +87,17 @@ export default function Home() {
                 }
               }}
               placeholder="What do you want to build? (किसी भी भाषा में लिखें...)"
-              className="w-full bg-transparent text-[var(--vl-text)] placeholder:text-[var(--vl-text-muted)] px-5 pt-5 pb-14 text-sm resize-none outline-none min-h-[120px]"
+              className="w-full bg-transparent text-gray-900 placeholder:text-gray-400 px-5 pt-5 pb-14 text-sm resize-none outline-none min-h-[120px]"
             />
             <div className="absolute bottom-3 right-3">
               <button
                 onClick={() => handleSubmit()}
                 disabled={!input.trim()}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-all disabled:opacity-30"
+                className="px-5 py-2.5 rounded-xl text-sm font-medium text-white transition-all disabled:opacity-30 shadow-md shadow-orange-200/50"
                 style={{
                   background: input.trim()
                     ? "linear-gradient(135deg, #FF6B2C, #FF8F3C)"
-                    : "rgba(255,255,255,0.06)",
+                    : "#E5E7EB",
                 }}
               >
                 Build →
@@ -132,14 +111,10 @@ export default function Home() {
               <button
                 key={t.label}
                 onClick={() => handleSubmit(t.prompt)}
-                className="flex items-center gap-2.5 px-4 py-3 rounded-xl text-left text-sm transition-all hover:scale-[1.02]"
-                style={{
-                  background: "var(--vl-bg-card)",
-                  border: "1px solid var(--vl-border)",
-                }}
+                className="flex items-center gap-2.5 px-4 py-3 rounded-xl text-left text-sm transition-all hover:scale-[1.02] bg-gray-50 border border-gray-100 hover:border-gray-200 hover:shadow-sm"
               >
                 <span className="text-lg">{t.icon}</span>
-                <span className="text-[var(--vl-text-secondary)]">{t.label}</span>
+                <span className="text-gray-600">{t.label}</span>
               </button>
             ))}
           </div>
@@ -149,12 +124,7 @@ export default function Home() {
             {["English", "हिन्दी", "ગુજરાતી", "العربية", "Español", "中文"].map((lang) => (
               <span
                 key={lang}
-                className="px-2.5 py-1 rounded-full text-xs"
-                style={{
-                  background: "rgba(255, 107, 44, 0.06)",
-                  color: "var(--vl-text-muted)",
-                  border: "1px solid rgba(255, 107, 44, 0.1)",
-                }}
+                className="px-2.5 py-1 rounded-full text-xs bg-orange-50 text-orange-600 border border-orange-100"
               >
                 {lang}
               </span>
@@ -164,7 +134,7 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="text-center py-4 text-xs text-[var(--vl-text-muted)]">
+      <footer className="text-center py-4 text-xs text-gray-400">
         Built by Sandeep Roy · Powered by SpecLock
       </footer>
     </div>
