@@ -72,6 +72,7 @@ model Project {
   messages    ChatMessage[]
   memories    ProjectMemory[]
   constraints ProjectConstraint[]
+  data        ProjectData[]
 }
 
 // ─── Chat Messages ───
@@ -94,6 +95,19 @@ model ProjectMemory {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// ─── Project Data Store (built-in database for user apps) ───
+model ProjectData {
+  id        String   @id @default(cuid())
+  projectId String
+  key       String
+  value     String   // JSON stringified
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, key])
 }
 
 // ─── SpecLock Constraints (baked-in) ───

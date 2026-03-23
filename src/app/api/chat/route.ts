@@ -139,6 +139,20 @@ Required design patterns:
 - Empty states: Show a friendly message with emoji when lists are empty.
 - Page background should be bg-gray-50 or bg-white. NEVER dark backgrounds.
 
+## DATA PERSISTENCE
+Every app you build MUST save data so it persists. Use localStorage for the preview:
+- Use localStorage.getItem() and localStorage.setItem() for reading/writing data
+- Always initialize state from localStorage on component mount
+- Save to localStorage whenever data changes (useEffect)
+- Example pattern:
+  const [items, setItems] = useState(() => {
+    const saved = localStorage.getItem('items');
+    return saved ? JSON.parse(saved) : [];
+  });
+  useEffect(() => { localStorage.setItem('items', JSON.stringify(items)); }, [items]);
+
+This ensures the user's data survives page refreshes in the preview.
+
 ## ERROR FIXING
 When you receive an error message:
 1. Identify the root cause from the error text.
