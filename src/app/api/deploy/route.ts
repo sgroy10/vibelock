@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
           Authorization: `Bearer ${NETLIFY_TOKEN}`,
           "Content-Type": "application/octet-stream",
         },
-        body: buf,
+        body: new Uint8Array(buf),
       });
     }
 
