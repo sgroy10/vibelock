@@ -6,17 +6,19 @@ import { cn } from "@/lib/cn";
 import { getWebContainer } from "@/lib/webcontainer";
 import { StreamParser, type VibeLockOp } from "@/lib/agent/parser";
 
-/** Strip vibelock tags from display text */
+/** Strip vibelock tags AND any code content from display text */
 function cleanDisplay(text: string): string {
-  return text
-    .replace(/<vibelock-file[^>]*>[\s\S]*?<\/vibelock-file>/g, "")
-    .replace(/<vibelock-shell>[\s\S]*?<\/vibelock-shell>/g, "")
-    .replace(/<vibelock-file[^>]*>/g, "")
-    .replace(/<\/vibelock-file>/g, "")
-    .replace(/<vibelock-shell>/g, "")
-    .replace(/<\/vibelock-shell>/g, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  let clean = text;
+  // Remove complete tags with content
+  clean = clean.replace(/<vibelock-file[^>]*>[\s\S]*?<\/vibelock-file>/g, "");
+  clean = clean.replace(/<vibelock-shell>[\s\S]*?<\/vibelock-shell>/g, "");
+  // Remove incomplete tags (during streaming, closing tag hasn't arrived yet)
+  clean = clean.replace(/<vibelock-file[^>]*>[\s\S]*/g, "");
+  clean = clean.replace(/<vibelock-shell>[\s\S]*/g, "");
+  // Remove any remaining tag fragments
+  clean = clean.replace(/<\/?vibelock-[^>]*>/g, "");
+  clean = clean.replace(/\n{3,}/g, "\n\n").trim();
+  return clean;
 }
 import { executeOps, formatErrorForRetry } from "@/lib/agent/executor";
 import { useWorkspaceStore } from "@/stores/workspace";
@@ -73,6 +75,21 @@ export default function WorkspacePage() {
       wc.on("server-ready", (_port: number, url: string) => {
         setPreviewUrl(url);
         setPhase("ready");
+        // Add completion message
+        setMessages((prev) => {
+          const updated = [...prev];
+          // Update the last assistant message to show completion
+          if (updated.length > 0 && updated[updated.length - 1].role === "assistant") {
+            const existing = updated[updated.length - 1].content;
+            if (existing === "Building your app..." || !existing.includes("ready")) {
+              updated[updated.length - 1] = {
+                role: "assistant",
+                content: "Your app is ready! Check the preview on the left. You can continue describing changes below.",
+              };
+            }
+          }
+          return updated;
+        });
       });
     });
   }, [setPhase, setPreviewUrl]);
@@ -373,10 +390,10 @@ export default function WorkspacePage() {
                     sendMessage();
                   }
                 }}
-                placeholder={isBusy ? "Building..." : "Describe what you want... (किसी भी भाषा में)"}
+                placeholder={isBusy ? "Building..." : "Describe what you want to build or change...\n(किसी भी भाषा में लिख सकते हैं)"}
                 disabled={isBusy}
                 className="w-full bg-transparent text-gray-900 placeholder:text-gray-400 px-4 py-3 pr-20 text-sm resize-none outline-none disabled:opacity-50"
-                rows={2}
+                style={{ minHeight: "80px" }}
               />
               <button
                 onClick={() => sendMessage()}
