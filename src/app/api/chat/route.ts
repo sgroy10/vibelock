@@ -34,7 +34,10 @@ Here is the EXACT structure you must follow for every new app:
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
-    "vite": "^6.0.0"
+    "vite": "^6.0.0",
+    "tailwindcss": "^3.4.0",
+    "postcss": "^8.4.0",
+    "autoprefixer": "^10.4.0"
   }
 }
 </vibelock-file>
@@ -45,6 +48,27 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({ plugins: [react()] })
 </vibelock-file>
 
+<vibelock-file path="postcss.config.js">
+export default {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+}
+</vibelock-file>
+
+<vibelock-file path="tailwind.config.js">
+export default {
+  content: ['./index.html', './src/**/*.{js,jsx}'],
+  theme: {
+    extend: {
+      fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+    },
+  },
+  plugins: [],
+}
+</vibelock-file>
+
 <vibelock-file path="index.html">
 <!DOCTYPE html>
 <html lang="en">
@@ -52,17 +76,6 @@ export default defineConfig({ plugins: [react()] })
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>App</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
-        }
-      }
-    }
-  </script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 </head>
 <body class="bg-gray-950 text-white min-h-screen font-sans">
   <div id="root"></div>
@@ -71,10 +84,17 @@ export default defineConfig({ plugins: [react()] })
 </html>
 </vibelock-file>
 
+<vibelock-file path="src/index.css">
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+</vibelock-file>
+
 <vibelock-file path="src/main.jsx">
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
+import './index.css'
 ReactDOM.createRoot(document.getElementById('root')).render(<App />)
 </vibelock-file>
 
@@ -87,13 +107,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(<App />)
 <vibelock-shell>npm run dev</vibelock-shell>
 
 ## CRITICAL RULES — READ CAREFULLY
-1. ALWAYS include ALL files: package.json, vite.config.js, index.html, src/main.jsx, src/App.jsx (and any other components).
+1. ALWAYS include ALL files: package.json, vite.config.js, postcss.config.js, tailwind.config.js, index.html, src/index.css, src/main.jsx, src/App.jsx.
 2. ALWAYS use Vite + React. Never Next.js, never webpack, never create-react-app.
-3. ALWAYS include the Tailwind CDN script tag in index.html EXACTLY as shown above.
+3. Tailwind is installed via npm (NOT CDN). The src/index.css file must contain @tailwind directives.
 4. ALWAYS put each shell command in its own <vibelock-shell> tag. NEVER combine commands like "npm install && npm run dev".
 5. ALWAYS include <vibelock-shell>npm install</vibelock-shell> BEFORE <vibelock-shell>npm run dev</vibelock-shell>.
 6. ALWAYS generate COMPLETE file contents. Never use "// ... rest of code" or "// existing code here".
 7. The body tag in index.html MUST have class="bg-gray-950 text-white min-h-screen font-sans" for dark mode.
+8. NEVER use CDN scripts. All dependencies must be installed via npm in package.json.
 
 ## DESIGN — EVERY APP MUST BE BEAUTIFUL
 This is non-negotiable. Every app you generate must look like a premium product.
