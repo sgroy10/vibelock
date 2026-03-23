@@ -5,6 +5,19 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { cn } from "@/lib/cn";
 import { getWebContainer } from "@/lib/webcontainer";
 import { StreamParser, type VibeLockOp } from "@/lib/agent/parser";
+
+/** Strip vibelock tags from display text */
+function cleanDisplay(text: string): string {
+  return text
+    .replace(/<vibelock-file[^>]*>[\s\S]*?<\/vibelock-file>/g, "")
+    .replace(/<vibelock-shell>[\s\S]*?<\/vibelock-shell>/g, "")
+    .replace(/<vibelock-file[^>]*>/g, "")
+    .replace(/<\/vibelock-file>/g, "")
+    .replace(/<vibelock-shell>/g, "")
+    .replace(/<\/vibelock-shell>/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
 import { executeOps, formatErrorForRetry } from "@/lib/agent/executor";
 import { useWorkspaceStore } from "@/stores/workspace";
 import type { WebContainer } from "@webcontainer/api";
@@ -98,14 +111,15 @@ export default function WorkspacePage() {
         fullText += chunk;
         parser.feed(chunk);
 
-        const displayText = parser.getAllText().trim();
-        if (displayText) {
-          setMessages((prev) => {
-            const updated = [...prev];
-            updated[updated.length - 1] = { role: "assistant", content: displayText };
-            return updated;
-          });
-        }
+        const displayText = cleanDisplay(fullText);
+        setMessages((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = {
+            role: "assistant",
+            content: displayText || "Building your app...",
+          };
+          return updated;
+        });
       }
 
       return { text: fullText, ops: parser.getAllOps() };

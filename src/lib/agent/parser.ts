@@ -54,7 +54,7 @@ export class StreamParser {
         if (fileIdx === -1 && shellIdx === -1) {
           // No tags found — check if buffer might contain a partial tag
           const partialIdx = this.buffer.lastIndexOf("<");
-          if (partialIdx !== -1 && partialIdx > this.buffer.length - 30) {
+          if (partialIdx !== -1 && partialIdx > this.buffer.length - 80) {
             // Might be a partial tag, keep it in buffer
             newText += this.buffer.slice(0, partialIdx);
             this.buffer = this.buffer.slice(partialIdx);
@@ -134,9 +134,22 @@ export class StreamParser {
     return [...this.ops];
   }
 
-  /** Get all plain text (non-operation) content */
+  /** Get all plain text (non-operation) content, with any leaked tags stripped */
   getAllText(): string {
-    return this.textParts.join("");
+    return StreamParser.cleanText(this.textParts.join(""));
+  }
+
+  /** Strip any vibelock tags that leaked through the parser */
+  static cleanText(text: string): string {
+    return text
+      .replace(/<vibelock-file[^>]*>[\s\S]*?<\/vibelock-file>/g, "")
+      .replace(/<vibelock-shell>[\s\S]*?<\/vibelock-shell>/g, "")
+      .replace(/<vibelock-file[^>]*>/g, "")
+      .replace(/<\/vibelock-file>/g, "")
+      .replace(/<vibelock-shell>/g, "")
+      .replace(/<\/vibelock-shell>/g, "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
   }
 
   /** Reset parser state */
