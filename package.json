@@ -17,29 +17,29 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
-    "next": "15.3.2",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
     "@ai-sdk/openai-compatible": "^0.2.0",
-    "ai": "^4.3.0",
     "@prisma/client": "^6.5.0",
+    "ai": "^4.3.0",
     "better-auth": "^1.2.0",
-    "zustand": "^5.0.0",
+    "clsx": "^2.1.0",
     "framer-motion": "^12.0.0",
     "lucide-react": "^0.475.0",
-    "clsx": "^2.1.0",
-    "tailwind-merge": "^3.0.0"
+    "next": "^15.3.8",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.0.0",
+    "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "typescript": "^5.7.0",
     "eslint": "^9.0.0",
-    "eslint-config-next": "15.3.2",
-    "@tailwindcss/postcss": "^4.1.0",
-    "tailwindcss": "^4.1.0",
+    "eslint-config-next": "^15.3.8",
     "postcss": "^8.5.0",
-    "prisma": "^6.5.0"
+    "prisma": "^6.5.0",
+    "tailwindcss": "^4.1.0",
+    "typescript": "^5.7.0"
   }
 }
