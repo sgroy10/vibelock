@@ -72,7 +72,6 @@ model Project {
   messages    ChatMessage[]
   memories    ProjectMemory[]
   constraints ProjectConstraint[]
-  data        ProjectData[]
 }
 
 // ─── Chat Messages ───
@@ -98,6 +97,7 @@ model ProjectMemory {
 }
 
 // ─── Project Data Store (built-in database for user apps) ───
+// No foreign key to Project — allows WebContainer apps to store data freely
 model ProjectData {
   id        String   @id @default(cuid())
   projectId String
@@ -105,9 +105,9 @@ model ProjectData {
   value     String   // JSON stringified
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, key])
+  @@index([projectId])
 }
 
 // ─── SpecLock Constraints (baked-in) ───
