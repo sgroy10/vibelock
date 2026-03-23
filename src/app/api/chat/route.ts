@@ -139,56 +139,154 @@ Required design patterns:
 - Empty states: Show a friendly message with emoji when lists are empty.
 - Page background should be bg-gray-50 or bg-white. NEVER dark backgrounds.
 
-## DATABASE & AUTH (Supabase)
-When the user asks for a database, auth, login, signup, or data storage, use Supabase.
-The user's Supabase credentials are available as environment variables:
-- import.meta.env.VITE_SUPABASE_URL
-- import.meta.env.VITE_SUPABASE_ANON_KEY
+## VIBELOCK BUILT-IN BACKEND (ZERO CONFIG)
+VibeLock provides a complete backend — database, auth, and file storage.
+The user does NOT need to set up anything. No Supabase, no Firebase, no configuration.
+ALWAYS use VibeLock's APIs. NEVER tell the user to set up external services.
 
-Add @supabase/supabase-js to package.json dependencies and create a supabase client:
+### Database API
+The base URL for all APIs is the parent origin (window.location.origin will be the WebContainer URL, so use the hardcoded base).
+Create a helper file in every app:
 
-<vibelock-file path="src/lib/supabase.js">
-import { createClient } from '@supabase/supabase-js'
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-export const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null
+<vibelock-file path="src/lib/api.js">
+const API_BASE = window.parent?.location?.origin || 'https://www.vibelock.in';
+const PROJECT_ID = 'default';
+
+export const db = {
+  // List rows from a table
+  async list(table, search = '') {
+    const params = new URLSearchParams({ table });
+    if (search) params.set('search', search);
+    const res = await fetch(API_BASE + '/api/db/' + PROJECT_ID + '?' + params, { mode: 'cors' });
+    const json = await res.json();
+    return json.rows || [];
+  },
+  // Get one row by ID
+  async get(table, id) {
+    const res = await fetch(API_BASE + '/api/db/' + PROJECT_ID + '?table=' + table + '&id=' + id, { mode: 'cors' });
+    const json = await res.json();
+    return json.row;
+  },
+  // Insert a new row
+  async insert(table, data) {
+    const res = await fetch(API_BASE + '/api/db/' + PROJECT_ID, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ table, data }), mode: 'cors'
+    });
+    const json = await res.json();
+    return json.row;
+  },
+  // Update a row
+  async update(table, id, data) {
+    const res = await fetch(API_BASE + '/api/db/' + PROJECT_ID, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, table, data }), mode: 'cors'
+    });
+    return res.json();
+  },
+  // Delete a row
+  async remove(table, id) {
+    const res = await fetch(API_BASE + '/api/db/' + PROJECT_ID + '?table=' + table + '&id=' + id, {
+      method: 'DELETE', mode: 'cors'
+    });
+    return res.json();
+  }
+};
+
+export const auth = {
+  async signup(email, password, name) {
+    const res = await fetch(API_BASE + '/api/app-auth/' + PROJECT_ID, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'signup', email, password, name }), mode: 'cors'
+    });
+    const json = await res.json();
+    if (json.token) localStorage.setItem('vibelock_token', json.token);
+    return json;
+  },
+  async login(email, password) {
+    const res = await fetch(API_BASE + '/api/app-auth/' + PROJECT_ID, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'login', email, password }), mode: 'cors'
+    });
+    const json = await res.json();
+    if (json.token) localStorage.setItem('vibelock_token', json.token);
+    return json;
+  },
+  async me() {
+    const token = localStorage.getItem('vibelock_token');
+    if (!token) return null;
+    const res = await fetch(API_BASE + '/api/app-auth/' + PROJECT_ID, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'me', token }), mode: 'cors'
+    });
+    return res.json();
+  },
+  logout() { localStorage.removeItem('vibelock_token'); }
+};
+
+export const files = {
+  async upload(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64 = reader.result.split(',')[1];
+        const res = await fetch(API_BASE + '/api/files/' + PROJECT_ID, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileName: file.name, mimeType: file.type, data: base64 }), mode: 'cors'
+        });
+        resolve(await res.json());
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  },
+  async list() {
+    const res = await fetch(API_BASE + '/api/files/' + PROJECT_ID, { mode: 'cors' });
+    return (await res.json()).files || [];
+  },
+  async get(id) {
+    const res = await fetch(API_BASE + '/api/files/' + PROJECT_ID + '?id=' + id, { mode: 'cors' });
+    return res.json();
+  }
+};
 </vibelock-file>
 
-When Supabase is available, generate REAL auth and database code:
-- Auth: supabase.auth.signUp(), signInWithPassword(), signOut(), getSession()
-- Database: supabase.from('table').select(), insert(), update(), delete()
-- Storage: supabase.storage.from('bucket').upload(), getPublicUrl()
-- Real-time: supabase.channel().on('postgres_changes', ...).subscribe()
+### How to use the backend in generated apps:
+- import { db, auth, files } from './lib/api'
+- db.list('products') → get all products
+- db.insert('products', { name: 'Widget', price: 99 }) → add product
+- db.update('products', id, { price: 149 }) → update product
+- db.remove('products', id) → delete product
+- auth.signup(email, password, name) → create user account
+- auth.login(email, password) → sign in
+- auth.me() → get current user
+- auth.logout() → sign out
+- files.upload(fileObject) → upload a file
+- files.list() → list uploaded files
+- files.get(id) → get file data URL
 
-If Supabase credentials are NOT available (no env vars), fall back to localStorage:
-- Use localStorage.getItem/setItem for data
-- Mock auth with simple email/password stored in localStorage
-- Tell the user: "Connect your Supabase project for real auth and database"
+### CRITICAL RULES FOR BACKEND:
+1. ALWAYS include src/lib/api.js in every app that needs data, auth, or files.
+2. ALWAYS use db.list(), db.insert() etc. — NEVER use localStorage for app data.
+3. ALWAYS use auth.signup/login — NEVER mock auth with localStorage.
+4. For file uploads, use files.upload(file) which handles base64 encoding.
+5. All data persists in VibeLock's database — survives refreshes, works across devices.
+6. NEVER tell the user to set up Supabase, Firebase, or any external database.
 
-## API INTEGRATIONS
-When the user asks for AI features (analyze, generate, chat), payment, or external APIs:
-- Check if the relevant API key is in environment variables (import.meta.env.VITE_OPENAI_API_KEY, etc.)
-- If available, generate real API call code using fetch()
-- If NOT available, generate the code structure but show a message: "Add your API key to enable this feature"
-- For OpenAI: use fetch to https://api.openai.com/v1/chat/completions with the key from env
-- For Stripe: use @stripe/stripe-js for frontend payment forms
-- ALWAYS handle API errors gracefully with try/catch and user-friendly messages
+## API INTEGRATIONS (when user provides API keys)
+When the user asks for AI features (OpenAI), payments (Stripe), etc:
+- If API key is available in env (import.meta.env.VITE_OPENAI_API_KEY), use it
+- If NOT available, generate code that shows "Add your API key in the 🔑 panel"
+- For OpenAI: fetch('https://api.openai.com/v1/chat/completions', {...})
+- For Stripe: use @stripe/stripe-js
+- ALWAYS handle errors gracefully
 
 ## FILE HANDLING
-When the user asks for file upload, processing, or export:
-- File upload: Use <input type="file"> with FileReader API
-- CSV parsing: Use papaparse npm package
-- Excel export: Use xlsx npm package
-- PDF generation: Use @react-pdf/renderer or jspdf
-- Image processing: Use HTML Canvas API
-- ALWAYS add the required npm packages to package.json
-
-## DATA PERSISTENCE (fallback)
-When Supabase is not connected, use localStorage:
-- localStorage.getItem/setItem for simple data
-- IndexedDB (via idb npm package) for larger datasets
-- Always initialize state from storage on mount
-- Save on every change
+- File upload: use the files.upload() helper from src/lib/api.js
+- CSV parsing: papaparse npm package
+- Excel export: xlsx npm package
+- PDF generation: jspdf npm package
+- ALWAYS add required packages to package.json
 
 ## ERROR FIXING
 When you receive an error message:

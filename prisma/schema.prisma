@@ -96,17 +96,57 @@ model ProjectMemory {
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
-// ─── Project Data Store (built-in database for user apps) ───
-// No foreign key to Project — allows WebContainer apps to store data freely
+// ─── Project Data Store (key-value, backward compat) ───
 model ProjectData {
   id        String   @id @default(cuid())
   projectId String
   key       String
-  value     String   // JSON stringified
+  value     String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([projectId, key])
+  @@index([projectId])
+}
+
+// ─── Dynamic Tables for User Apps ───
+// Each row belongs to a project + table. Flexible JSON storage.
+model AppTable {
+  id        String   @id @default(cuid())
+  projectId String
+  tableName String
+  data      String   // JSON object (one row)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId, tableName])
+  @@index([projectId])
+}
+
+// ─── App Users (auth for generated apps) ───
+model AppUser {
+  id        String   @id @default(cuid())
+  projectId String
+  email     String
+  password  String   // hashed
+  name      String?
+  metadata  String?  // JSON
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, email])
+  @@index([projectId])
+}
+
+// ─── File Storage for User Apps ───
+model AppFile {
+  id        String   @id @default(cuid())
+  projectId String
+  fileName  String
+  mimeType  String
+  size      Int
+  data      String   // base64 encoded (for small files)
+  createdAt DateTime @default(now())
+
   @@index([projectId])
 }
 
