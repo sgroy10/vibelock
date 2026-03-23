@@ -1,48 +1,27 @@
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
 
-node_modules
-dist
-dist-ssr
-*.local
+# next.js
+/.next/
+/out/
 
-.vscode/*
-.vscode/launch.json
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-/.history
-/.cache
+# production
 /build
-functions/build/
-.env.local
+
+# misc
+.DS_Store
+*.pem
 .env
-.dev.vars
-*.vars
-.wrangler
-_worker.bundle
+.env*.local
 
-Modelfile
-modelfiles
+# debug
+npm-debug.log*
 
-# docs ignore
-site
+# typescript
+*.tsbuildinfo
+next-env.d.ts
 
-# commit file ignore
-app/commit.json
-changelogUI.md
-docs/instructions/Roadmap.md
-.cursorrules
-*.md
-.qodo
+# prisma
+prisma/migrations/
