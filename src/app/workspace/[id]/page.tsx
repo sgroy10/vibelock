@@ -53,6 +53,8 @@ export default function WorkspacePage() {
   const [constraints, setConstraints] = useState<Constraint[]>([]);
   const [showSecrets, setShowSecrets] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [isDeploying, setIsDeploying] = useState(false);
+  const [deployUrl, setDeployUrl] = useState<string | null>(null);
   const secrets = useSecretsStore();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -361,6 +363,76 @@ export default function WorkspacePage() {
               className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors border border-gray-200"
             >
               ↗ New tab
+            </a>
+          )}
+
+          {/* Publish to Netlify */}
+          {previewUrl && !deployUrl && (
+            <button
+              onClick={async () => {
+                const wc = wcRef.current;
+                if (!wc || isDeploying) return;
+                setIsDeploying(true);
+                try {
+                  // Read all files from WebContainer
+                  const files: Record<string, string> = {};
+                  const readDir = async (path: string) => {
+                    try {
+                      const entries = await wc.fs.readdir(path, { withFileTypes: true });
+                      for (const entry of entries) {
+                        const fullPath = path === "." ? entry.name : `${path}/${entry.name}`;
+                        if (entry.name === "node_modules" || entry.name === ".git") continue;
+                        if (entry.isDirectory()) {
+                          await readDir(fullPath);
+                        } else {
+                          try {
+                            const content = await wc.fs.readFile(fullPath, "utf-8");
+                            files[fullPath] = content;
+                          } catch { /* skip */ }
+                        }
+                      }
+                    } catch { /* skip */ }
+                  };
+                  await readDir(".");
+
+                  // Build the app first (Netlify needs static files)
+                  // For Vite apps, we deploy the source with index.html
+                  const res = await fetch("/api/deploy", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ files, projectName: projectId }),
+                  });
+                  const data = await res.json();
+                  if (data.url) {
+                    setDeployUrl(data.url);
+                  } else {
+                    alert("Deploy failed: " + (data.error || "Unknown error"));
+                  }
+                } catch (err) {
+                  console.error("Deploy error:", err);
+                  alert("Deploy failed");
+                } finally {
+                  setIsDeploying(false);
+                }
+              }}
+              disabled={isDeploying}
+              className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium text-white transition-all disabled:opacity-50 shadow-sm"
+              style={{ background: "linear-gradient(135deg, #FF6B2C, #FF8F3C)" }}
+            >
+              {isDeploying ? "Publishing..." : "🚀 Publish"}
+            </button>
+          )}
+
+          {/* Deploy URL */}
+          {deployUrl && (
+            <a
+              href={deployUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium text-white shadow-sm"
+              style={{ background: "linear-gradient(135deg, #16A34A, #22C55E)" }}
+            >
+              🌐 Live: {deployUrl.replace("https://", "").split(".")[0]}.netlify.app
             </a>
           )}
 
