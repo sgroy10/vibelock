@@ -170,9 +170,22 @@ export default function WorkspacePage() {
       (p, detail) => setPhase(p as typeof phase, detail)
     );
 
-    if (errors.length === 0 && !previewUrl) {
+    if (errors.length === 0) {
+      // Wait for dev server — poll for up to 45 seconds
       appendTerminal("⏳ Waiting for dev server...\n");
-      await new Promise((resolve) => setTimeout(resolve, 15000));
+      const store = useWorkspaceStore.getState;
+      for (let i = 0; i < 15; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        if (store().previewUrl) {
+          appendTerminal("✅ Dev server is ready!\n");
+          return;
+        }
+      }
+      // If still no preview after 45s, something might be wrong but don't error out
+      if (!store().previewUrl) {
+        appendTerminal("⚠️ Dev server is taking long. It may still start...\n");
+        setPhase("starting", "Server is still starting...");
+      }
     }
 
     if (errors.length > 0 && attempt < MAX_RETRIES) {
