@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { cn } from "@/lib/cn";
 import { getWebContainer } from "@/lib/webcontainer";
 import { StreamParser, type VibeLockOp } from "@/lib/agent/parser";
+import { detectLanguage, SUPPORTED_LANGUAGES, type Language } from "@/lib/language";
 
 /** Strip vibelock tags AND any code content from display text */
 function cleanDisplay(text: string): string {
@@ -46,6 +47,7 @@ export default function WorkspacePage() {
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
+  const [detectedLang, setDetectedLang] = useState<Language>(SUPPORTED_LANGUAGES[0]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const wcRef = useRef<WebContainer | null>(null);
@@ -147,6 +149,10 @@ export default function WorkspacePage() {
   const sendMessage = async (text?: string) => {
     const content = text || input;
     if (!content.trim() || isBusy) return;
+
+    // Detect language from user input
+    const lang = detectLanguage(content);
+    setDetectedLang(lang);
 
     const userMsg: Message = { role: "user", content: content.trim() };
     const updatedMessages = [...messages, userMsg];
@@ -285,6 +291,13 @@ export default function WorkspacePage() {
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
               New tab
             </a>
+          )}
+
+          {/* Language indicator */}
+          {detectedLang.code !== "en" && (
+            <span className="px-2 py-0.5 rounded text-xs bg-orange-50 text-orange-600 border border-orange-100">
+              {detectedLang.nativeName}
+            </span>
           )}
 
           <span className={cn("w-2 h-2 rounded-full", wcReady ? "bg-green-500" : "bg-amber-400 animate-pulse")} />

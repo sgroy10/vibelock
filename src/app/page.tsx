@@ -121,7 +121,7 @@ export default function Home() {
 
           {/* Language pills */}
           <div className="flex flex-wrap items-center justify-center gap-2 mt-8">
-            {["English", "हिन्दी", "ગુજરાતી", "العربية", "Español", "中文"].map((lang) => (
+            {["English", "हिन्दी", "ગુજરાતી", "मराठी", "தமிழ்", "తెలుగు", "বাংলা", "العربية", "Español", "中文", "اردو", "ಕನ್ನಡ"].map((lang) => (
               <span
                 key={lang}
                 className="px-2.5 py-1 rounded-full text-xs bg-orange-50 text-orange-600 border border-orange-100"
