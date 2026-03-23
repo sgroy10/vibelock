@@ -49,10 +49,15 @@ async function runShell(
     const cmd = parts[0];
     const args = parts.slice(1);
 
+    // Detect if this is a long-running dev server command
+    const isDevServer =
+      op.command.includes("run dev") ||
+      op.command.includes("run start") ||
+      op.command.includes("vite");
+
     const process = await wc.spawn(cmd, args);
 
     let stdout = "";
-    let stderr = "";
 
     // Capture output
     const outputStream = new WritableStream({
@@ -64,13 +69,22 @@ async function runShell(
 
     process.output.pipeTo(outputStream).catch(() => {});
 
+    if (isDevServer) {
+      // Dev server runs forever — don't wait for exit.
+      // The WebContainer 'server-ready' event will fire when it's ready.
+      // Wait a few seconds for initial startup errors.
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      return { success: true, output: stdout, error: "", op };
+    }
+
+    // For regular commands (npm install, etc.), wait for exit
     const exitCode = await process.exit;
 
     if (exitCode !== 0) {
       return {
         success: false,
         output: stdout,
-        error: stderr || stdout, // npm often puts errors in stdout
+        error: stdout, // npm puts errors in stdout
         op,
       };
     }

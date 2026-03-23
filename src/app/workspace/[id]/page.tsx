@@ -176,7 +176,21 @@ export default function WorkspacePage() {
     chatMessages: Message[],
     attempt = 0
   ) => {
-    setPhase("writing", `Creating ${ops.filter((o) => o.type === "file").length} files...`);
+    // Auto-inject shell commands if AI didn't include them
+    const hasInstall = ops.some((o) => o.type === "shell" && o.command.includes("install"));
+    const hasDev = ops.some((o) => o.type === "shell" && (o.command.includes("dev") || o.command.includes("start")));
+    const hasFiles = ops.some((o) => o.type === "file");
+
+    if (hasFiles && !hasInstall) {
+      ops.push({ type: "shell", command: "npm install" });
+    }
+    if (hasFiles && !hasDev) {
+      ops.push({ type: "shell", command: "npm run dev" });
+    }
+
+    const fileCount = ops.filter((o) => o.type === "file").length;
+    setPhase("writing", `Creating ${fileCount} files...`);
+    appendTerminal(`📝 Writing ${fileCount} files to sandbox...\n`);
 
     const { errors } = await executeOps(
       wc,
@@ -184,6 +198,14 @@ export default function WorkspacePage() {
       (data) => appendTerminal(data),
       (p, detail) => setPhase(p as typeof phase, detail)
     );
+
+    // If no errors but no server started after execution, wait a bit then check
+    if (errors.length === 0 && !previewUrl) {
+      appendTerminal("⏳ Waiting for dev server to start...\n");
+      // Give the server 15 seconds to start — the server-ready event will set phase
+      await new Promise((resolve) => setTimeout(resolve, 15000));
+      // If still no preview after 15s, it may need more time — don't error yet
+    }
 
     if (errors.length > 0 && attempt < MAX_RETRIES) {
       // Error detected — retry
