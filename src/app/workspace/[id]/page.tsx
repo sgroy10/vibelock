@@ -9,6 +9,8 @@ import { StreamParser, type VibeLockOp } from "@/lib/agent/parser";
 import { detectLanguage, SUPPORTED_LANGUAGES, type Language } from "@/lib/language";
 import { detectConstraints, formatConstraintsForPrompt, type Constraint } from "@/lib/speclock";
 import { useSecretsStore } from "@/stores/secrets";
+import FileExplorer from "@/components/workspace/FileExplorer";
+import ConsolePanel from "@/components/workspace/ConsolePanel";
 
 /** Strip vibelock tags AND any code content from display text */
 function cleanDisplay(text: string): string {
@@ -322,10 +324,62 @@ export default function WorkspacePage() {
     }
   };
 
+  // File explorer refresh trigger — increments after each build
+  const [fileRefresh, setFileRefresh] = useState(0);
+  // Right panel tab: preview | files | console
+  const [rightTab, setRightTab] = useState<"preview" | "files" | "console">("preview");
+
+  // After successful build, refresh file explorer
+  useEffect(() => {
+    if (phase === "ready") setFileRefresh((n) => n + 1);
+  }, [phase]);
+
+  const handleDownload = async () => {
+    const wc = wcRef.current;
+    if (!wc) return;
+    try {
+      const files = await readProjectFiles(wc);
+      const blob = new Blob([JSON.stringify(files, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "vibelock-project.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Download failed:", err);
+    }
+  };
+
+  const handleDeploy = async () => {
+    const wc = wcRef.current;
+    if (!wc || isDeploying) return;
+    setIsDeploying(true);
+    try {
+      const files = await readProjectFiles(wc);
+      const res = await fetch("/api/deploy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ files, projectName: projectId }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        setDeployUrl(data.url);
+      } else {
+        alert("Deploy failed: " + (data.error || "Unknown error"));
+      }
+    } catch (err) {
+      console.error("Deploy error:", err);
+      alert("Deploy failed");
+    } finally {
+      setIsDeploying(false);
+    }
+  };
+
   return (
     <div className="h-screen flex flex-col bg-white">
-      {/* Top Bar */}
-      <header className="flex items-center justify-between px-4 h-12 border-b border-gray-100 bg-white shrink-0 z-10">
+      {/* ── Top Bar ── */}
+      <header className="flex items-center justify-between px-4 h-11 border-b border-gray-100 bg-white shrink-0 z-10">
         <a href="/" className="flex items-center gap-2">
           <div
             className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold text-white"
@@ -336,12 +390,12 @@ export default function WorkspacePage() {
           <span className="text-sm font-semibold text-gray-900">VibeLock</span>
         </a>
 
-        {/* Status pill */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {/* Status pill */}
           {phase !== "idle" && (
             <div
               className={cn(
-                "flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium",
+                "flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium",
                 phase === "ready" ? "bg-green-50 text-green-700 border border-green-100" :
                 phase === "error" ? "bg-red-50 text-red-700 border border-red-100" :
                 "bg-amber-50 text-amber-700 border border-amber-100"
@@ -352,146 +406,43 @@ export default function WorkspacePage() {
             </div>
           )}
 
-          {/* Download code */}
           {previewUrl && (
-            <button
-              onClick={async () => {
-                const wc = wcRef.current;
-                if (!wc) return;
-                try {
-                  // Read key files and create a simple download
-                  const files: Record<string, string> = {};
-                  const readDir = async (path: string) => {
-                    try {
-                      const entries = await wc.fs.readdir(path, { withFileTypes: true });
-                      for (const entry of entries) {
-                        const fullPath = path === "." ? entry.name : `${path}/${entry.name}`;
-                        if (entry.name === "node_modules" || entry.name === ".git") continue;
-                        if (entry.isDirectory()) {
-                          await readDir(fullPath);
-                        } else {
-                          try {
-                            const content = await wc.fs.readFile(fullPath, "utf-8");
-                            files[fullPath] = content;
-                          } catch { /* skip binary files */ }
-                        }
-                      }
-                    } catch { /* skip unreadable dirs */ }
-                  };
-                  await readDir(".");
-                  const blob = new Blob([JSON.stringify(files, null, 2)], { type: "application/json" });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = "vibelock-project.json";
-                  a.click();
-                  URL.revokeObjectURL(url);
-                } catch (err) {
-                  console.error("Download failed:", err);
-                }
-              }}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors border border-gray-200"
-            >
-              ⬇ Download
-            </button>
+            <>
+              <button onClick={handleDownload} className="px-2 py-0.5 rounded text-[11px] text-gray-500 hover:text-gray-700 hover:bg-gray-50 border border-gray-200">
+                ⬇ Code
+              </button>
+              <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="px-2 py-0.5 rounded text-[11px] text-gray-500 hover:text-gray-700 hover:bg-gray-50 border border-gray-200">
+                ↗ New tab
+              </a>
+            </>
           )}
 
-          {/* Open in new tab */}
-          {previewUrl && (
-            <a
-              href={previewUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors border border-gray-200"
-            >
-              ↗ New tab
-            </a>
-          )}
-
-          {/* Publish to Netlify */}
           {previewUrl && !deployUrl && (
             <button
-              onClick={async () => {
-                const wc = wcRef.current;
-                if (!wc || isDeploying) return;
-                setIsDeploying(true);
-                try {
-                  // Read all files from WebContainer
-                  const files: Record<string, string> = {};
-                  const readDir = async (path: string) => {
-                    try {
-                      const entries = await wc.fs.readdir(path, { withFileTypes: true });
-                      for (const entry of entries) {
-                        const fullPath = path === "." ? entry.name : `${path}/${entry.name}`;
-                        if (entry.name === "node_modules" || entry.name === ".git") continue;
-                        if (entry.isDirectory()) {
-                          await readDir(fullPath);
-                        } else {
-                          try {
-                            const content = await wc.fs.readFile(fullPath, "utf-8");
-                            files[fullPath] = content;
-                          } catch { /* skip */ }
-                        }
-                      }
-                    } catch { /* skip */ }
-                  };
-                  await readDir(".");
-
-                  // Build the app first (Netlify needs static files)
-                  // For Vite apps, we deploy the source with index.html
-                  const res = await fetch("/api/deploy", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ files, projectName: projectId }),
-                  });
-                  const data = await res.json();
-                  if (data.url) {
-                    setDeployUrl(data.url);
-                  } else {
-                    alert("Deploy failed: " + (data.error || "Unknown error"));
-                  }
-                } catch (err) {
-                  console.error("Deploy error:", err);
-                  alert("Deploy failed");
-                } finally {
-                  setIsDeploying(false);
-                }
-              }}
+              onClick={handleDeploy}
               disabled={isDeploying}
-              className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium text-white transition-all disabled:opacity-50 shadow-sm"
+              className="px-2.5 py-0.5 rounded text-[11px] font-medium text-white disabled:opacity-50 shadow-sm"
               style={{ background: "linear-gradient(135deg, #FF6B2C, #FF8F3C)" }}
             >
               {isDeploying ? "Publishing..." : "🚀 Publish"}
             </button>
           )}
 
-          {/* Deploy URL */}
           {deployUrl && (
-            <a
-              href={deployUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium text-white shadow-sm"
-              style={{ background: "linear-gradient(135deg, #16A34A, #22C55E)" }}
-            >
-              🌐 Live: {deployUrl.replace("https://", "").split(".")[0]}.netlify.app
+            <a href={deployUrl} target="_blank" rel="noopener noreferrer" className="px-2.5 py-0.5 rounded text-[11px] font-medium text-white shadow-sm" style={{ background: "linear-gradient(135deg, #16A34A, #22C55E)" }}>
+              🌐 Live
             </a>
           )}
 
-          {/* Language indicator */}
           {detectedLang.code !== "en" && (
-            <span className="px-2 py-0.5 rounded text-xs bg-orange-50 text-orange-600 border border-orange-100">
+            <span className="px-1.5 py-0.5 rounded text-[10px] bg-orange-50 text-orange-600 border border-orange-100">
               {detectedLang.nativeName}
             </span>
           )}
 
-          {/* SpecLock indicator */}
           {constraints.length > 0 && (
-            <span
-              className="px-2 py-0.5 rounded text-xs bg-green-50 text-green-700 border border-green-100 cursor-help"
-              title={constraints.map((c) => `🔒 ${c.text}`).join("\n")}
-            >
-              🔒 {constraints.length} locked
+            <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-50 text-green-700 border border-green-100 cursor-help" title={constraints.map((c) => `🔒 ${c.text}`).join("\n")}>
+              🔒 {constraints.length}
             </span>
           )}
 
@@ -499,80 +450,24 @@ export default function WorkspacePage() {
         </div>
       </header>
 
-      {/* Main content: Preview + Chat side by side on desktop, stacked on mobile */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-        {/* Preview Area */}
-        <div className="flex-1 relative border-b lg:border-b-0 lg:border-r border-gray-100 min-h-[40vh]">
-          {previewUrl && (
-            <iframe
-              src={previewUrl}
-              className="w-full h-full border-0 bg-white"
-              title="App Preview"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-            />
-          )}
+      {/* ── Main 3-Panel Layout ── */}
+      <div className="flex-1 flex overflow-hidden">
 
-          {!previewUrl && phase === "idle" && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-gray-50">
-                <span className="text-2xl">🖥️</span>
-              </div>
-              <div className="text-sm text-gray-400">
-                {wcReady ? "Your app preview will appear here" : "Starting sandbox..."}
-              </div>
-            </div>
-          )}
-
-          {/* Building progress */}
-          {!previewUrl && phase !== "idle" && phase !== "ready" && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-50/80 backdrop-blur-sm">
-              <div className="w-[380px] rounded-2xl p-6 bg-white border border-gray-200 shadow-xl shadow-gray-200/50">
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-orange-50 shrink-0">
-                    <span className="text-xl">{PHASE_LABELS[phase]?.icon || "✨"}</span>
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold text-gray-900">{PHASE_LABELS[phase]?.label}</div>
-                    {phaseDetail && <div className="text-xs text-gray-400 mt-0.5">{phaseDetail}</div>}
-                  </div>
-                </div>
-
-                <div className="h-1.5 rounded-full overflow-hidden bg-gray-100 mb-4">
-                  <div
-                    className="h-full rounded-full transition-all duration-700"
-                    style={{
-                      width: phase === "streaming" ? "30%" : phase === "writing" ? "50%" : phase === "installing" ? "70%" : phase === "starting" ? "90%" : phase === "error" ? "100%" : "10%",
-                      background: phase === "error" ? "#DC2626" : "linear-gradient(90deg, #FF6B2C, #FF8F3C)",
-                    }}
-                  />
-                </div>
-
-                {terminalOutput.length > 0 && (
-                  <div className="rounded-lg p-3 text-xs font-mono max-h-[100px] overflow-y-auto bg-gray-50 text-gray-500 border border-gray-100">
-                    {terminalOutput.slice(-6).map((line, i) => (
-                      <div key={i} className="whitespace-pre-wrap break-all">{line}</div>
-                    ))}
-                  </div>
-                )}
-
-                {retryCount > 0 && (
-                  <div className="mt-3 text-xs text-gray-400">🔧 Auto-fix attempt {retryCount}/{MAX_RETRIES}</div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Chat Panel */}
-        <div className="w-full lg:w-[400px] xl:w-[440px] flex flex-col bg-white shrink-0 h-[40vh] lg:h-full">
+        {/* ── LEFT: Chat Panel ── */}
+        <div className="w-[340px] xl:w-[380px] flex flex-col border-r border-gray-100 shrink-0">
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-4 py-4">
-            <div className="flex flex-col gap-3">
+          <div className="flex-1 overflow-y-auto px-3 py-3">
+            <div className="flex flex-col gap-2.5">
+              {messages.length === 0 && (
+                <div className="text-center py-12 text-gray-400 text-xs">
+                  Describe what you want to build...
+                </div>
+              )}
               {messages.map((msg, i) => (
                 <div
                   key={i}
                   className={cn(
-                    "max-w-[90%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap",
+                    "max-w-[92%] rounded-2xl px-3.5 py-2 text-[13px] leading-relaxed whitespace-pre-wrap",
                     msg.role === "user"
                       ? "ml-auto bg-orange-50 text-gray-900 border border-orange-100"
                       : "mr-auto bg-gray-50 text-gray-700 border border-gray-100"
@@ -585,83 +480,45 @@ export default function WorkspacePage() {
             </div>
           </div>
 
-          {/* Secrets Panel (collapsible) */}
+          {/* Secrets Panel */}
           {showSecrets && (
-            <div className="px-4 py-3 border-t border-gray-100 bg-gray-50 text-xs space-y-2">
-              <div className="font-medium text-gray-700 mb-2">🔑 Connect Services</div>
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  placeholder="Supabase URL"
-                  value={secrets.supabaseUrl}
-                  onChange={(e) => secrets.setSupabase(e.target.value, secrets.supabaseAnonKey)}
-                  className="px-2 py-1.5 rounded-lg border border-gray-200 text-gray-900 bg-white outline-none focus:ring-1 focus:ring-orange-500"
-                />
-                <input
-                  placeholder="Supabase Anon Key"
-                  value={secrets.supabaseAnonKey}
-                  onChange={(e) => secrets.setSupabase(secrets.supabaseUrl, e.target.value)}
-                  className="px-2 py-1.5 rounded-lg border border-gray-200 text-gray-900 bg-white outline-none focus:ring-1 focus:ring-orange-500"
-                />
-                <input
-                  placeholder="OpenAI API Key"
-                  type="password"
-                  value={secrets.openaiKey}
-                  onChange={(e) => secrets.setOpenaiKey(e.target.value)}
-                  className="px-2 py-1.5 rounded-lg border border-gray-200 text-gray-900 bg-white outline-none focus:ring-1 focus:ring-orange-500"
-                />
-                <input
-                  placeholder="Stripe Public Key"
-                  type="password"
-                  value={secrets.stripeKey}
-                  onChange={(e) => secrets.setStripeKey(e.target.value)}
-                  className="px-2 py-1.5 rounded-lg border border-gray-200 text-gray-900 bg-white outline-none focus:ring-1 focus:ring-orange-500"
-                />
+            <div className="px-3 py-2 border-t border-gray-100 bg-gray-50 text-xs space-y-2">
+              <div className="font-medium text-gray-700">🔑 Connect Services</div>
+              <div className="grid grid-cols-2 gap-1.5">
+                <input placeholder="Supabase URL" value={secrets.supabaseUrl} onChange={(e) => secrets.setSupabase(e.target.value, secrets.supabaseAnonKey)} className="px-2 py-1 rounded border border-gray-200 text-gray-900 bg-white outline-none focus:ring-1 focus:ring-orange-500 text-[11px]" />
+                <input placeholder="Anon Key" value={secrets.supabaseAnonKey} onChange={(e) => secrets.setSupabase(secrets.supabaseUrl, e.target.value)} className="px-2 py-1 rounded border border-gray-200 text-gray-900 bg-white outline-none focus:ring-1 focus:ring-orange-500 text-[11px]" />
+                <input placeholder="OpenAI Key" type="password" value={secrets.openaiKey} onChange={(e) => secrets.setOpenaiKey(e.target.value)} className="px-2 py-1 rounded border border-gray-200 text-gray-900 bg-white outline-none focus:ring-1 focus:ring-orange-500 text-[11px]" />
+                <input placeholder="Stripe Key" type="password" value={secrets.stripeKey} onChange={(e) => secrets.setStripeKey(e.target.value)} className="px-2 py-1 rounded border border-gray-200 text-gray-900 bg-white outline-none focus:ring-1 focus:ring-orange-500 text-[11px]" />
               </div>
-              <div className="text-gray-400">Keys are stored locally and never sent to our servers.</div>
+              <div className="text-gray-400 text-[10px]">Stored locally, never sent to our servers.</div>
             </div>
           )}
 
           {/* Input */}
-          <div className="px-4 pb-4 pt-2 border-t border-gray-100 shrink-0">
-            {/* Toolbar */}
-            <div className="flex items-center gap-1 mb-2">
+          <div className="px-3 pb-3 pt-2 border-t border-gray-100">
+            <div className="flex items-center gap-1 mb-1.5">
               <button
                 onClick={() => setShowSecrets(!showSecrets)}
-                className={cn(
-                  "px-2 py-1 rounded-lg text-xs transition-colors",
-                  showSecrets ? "bg-orange-50 text-orange-600" : "text-gray-400 hover:text-gray-600 hover:bg-gray-50"
-                )}
+                className={cn("px-2 py-0.5 rounded text-[11px]", showSecrets ? "bg-orange-50 text-orange-600" : "text-gray-400 hover:text-gray-600 hover:bg-gray-50")}
               >
                 🔑 {secrets.supabaseUrl ? "Connected" : "Connect"}
               </button>
               <button
                 onClick={() => {
                   if (isListening) return;
-                  if (!("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
-                    alert("Speech recognition not supported in this browser");
-                    return;
-                  }
+                  if (!("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) { alert("Speech recognition not supported"); return; }
                   const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
                   const recognition = new SR();
                   recognition.continuous = false;
                   recognition.interimResults = true;
                   recognition.lang = detectedLang.code === "hi" ? "hi-IN" : detectedLang.code === "gu" ? "gu-IN" : "en-US";
-
                   setIsListening(true);
-                  recognition.onresult = (event: any) => {
-                    const transcript = Array.from(event.results)
-                      .map((r: any) => r[0].transcript)
-                      .join("");
-                    setInput(transcript);
-                  };
+                  recognition.onresult = (event: any) => { setInput(Array.from(event.results).map((r: any) => r[0].transcript).join("")); };
                   recognition.onerror = () => setIsListening(false);
                   recognition.onend = () => setIsListening(false);
                   recognition.start();
                 }}
-                className={cn(
-                  "px-2 py-1 rounded-lg text-xs transition-colors",
-                  isListening ? "bg-red-50 text-red-600 animate-pulse" : "text-gray-400 hover:text-gray-600 hover:bg-gray-50"
-                )}
+                className={cn("px-2 py-0.5 rounded text-[11px]", isListening ? "bg-red-50 text-red-600 animate-pulse" : "text-gray-400 hover:text-gray-600 hover:bg-gray-50")}
               >
                 🎤 {isListening ? "Listening..." : "Speak"}
               </button>
@@ -672,27 +529,117 @@ export default function WorkspacePage() {
                 ref={textareaRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                  }
-                }}
-                placeholder={isBusy ? "Building..." : "Describe what you want to build or change...\n(किसी भी भाषा में लिख सकते हैं — या बोलें 🎤)"}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                placeholder={isBusy ? "Building..." : "Describe what you want to build or change..."}
                 disabled={isBusy}
-                className="w-full bg-transparent text-gray-900 placeholder:text-gray-400 px-4 py-3 pr-20 text-sm resize-none outline-none disabled:opacity-50"
-                style={{ minHeight: "80px" }}
+                className="w-full bg-transparent text-gray-900 placeholder:text-gray-400 px-3 py-2.5 pr-16 text-[13px] resize-none outline-none disabled:opacity-50"
+                style={{ minHeight: "70px" }}
               />
               <button
                 onClick={() => sendMessage()}
                 disabled={!input.trim() || isBusy || !wcReady}
-                className="absolute right-2 bottom-2 px-4 py-1.5 rounded-lg text-xs font-medium text-white transition-all disabled:opacity-30 shadow-sm"
-                style={{
-                  background: input.trim() && !isBusy ? "linear-gradient(135deg, #FF6B2C, #FF8F3C)" : "#E5E7EB",
-                }}
+                className="absolute right-2 bottom-2 px-3 py-1 rounded-lg text-[11px] font-medium text-white transition-all disabled:opacity-30 shadow-sm"
+                style={{ background: input.trim() && !isBusy ? "linear-gradient(135deg, #FF6B2C, #FF8F3C)" : "#E5E7EB" }}
               >
                 {isBusy ? "..." : "Send"}
               </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── CENTER + RIGHT: Preview / Files / Console ── */}
+        <div className="flex-1 flex flex-col">
+
+          {/* Tab bar */}
+          <div className="flex items-center gap-0 border-b border-gray-100 bg-gray-50/50 px-2 shrink-0">
+            {(["preview", "files", "console"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setRightTab(tab)}
+                className={cn(
+                  "px-3 py-2 text-[11px] font-medium border-b-2 transition-colors capitalize",
+                  rightTab === tab
+                    ? "border-orange-500 text-gray-900"
+                    : "border-transparent text-gray-400 hover:text-gray-600"
+                )}
+              >
+                {tab === "preview" ? "🖥 Preview" : tab === "files" ? "📁 Files" : "🔍 Console"}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab content */}
+          <div className="flex-1 relative overflow-hidden">
+            {/* Preview */}
+            <div className={cn("absolute inset-0", rightTab !== "preview" && "hidden")}>
+              {previewUrl && (
+                <iframe
+                  src={previewUrl}
+                  className="w-full h-full border-0 bg-white"
+                  title="App Preview"
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+                />
+              )}
+
+              {!previewUrl && phase === "idle" && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-gray-50">
+                    <span className="text-2xl">🖥️</span>
+                  </div>
+                  <div className="text-sm text-gray-400">
+                    {wcReady ? "Your app preview will appear here" : "Setting up sandbox..."}
+                  </div>
+                </div>
+              )}
+
+              {/* Building progress overlay */}
+              {!previewUrl && phase !== "idle" && phase !== "ready" && (
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-50/80 backdrop-blur-sm">
+                  <div className="w-[380px] rounded-2xl p-6 bg-white border border-gray-200 shadow-xl shadow-gray-200/50">
+                    <div className="flex items-center gap-3 mb-5">
+                      <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-orange-50 shrink-0">
+                        <span className="text-xl">{PHASE_LABELS[phase]?.icon || "✨"}</span>
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-gray-900">{PHASE_LABELS[phase]?.label}</div>
+                        {phaseDetail && <div className="text-xs text-gray-400 mt-0.5">{phaseDetail}</div>}
+                      </div>
+                    </div>
+
+                    <div className="h-1.5 rounded-full overflow-hidden bg-gray-100 mb-4">
+                      <div
+                        className="h-full rounded-full transition-all duration-700"
+                        style={{
+                          width: phase === "streaming" ? "30%" : phase === "writing" ? "50%" : phase === "installing" ? "70%" : phase === "starting" ? "90%" : phase === "error" ? "100%" : "10%",
+                          background: phase === "error" ? "#DC2626" : "linear-gradient(90deg, #FF6B2C, #FF8F3C)",
+                        }}
+                      />
+                    </div>
+
+                    {terminalOutput.length > 0 && (
+                      <div className="rounded-lg p-3 text-xs font-mono max-h-[100px] overflow-y-auto bg-gray-50 text-gray-500 border border-gray-100">
+                        {terminalOutput.slice(-6).map((line, i) => (
+                          <div key={i} className="whitespace-pre-wrap break-all">{line}</div>
+                        ))}
+                      </div>
+                    )}
+
+                    {retryCount > 0 && (
+                      <div className="mt-3 text-xs text-gray-400">🔧 Auto-fix attempt {retryCount}/{MAX_RETRIES}</div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Files */}
+            <div className={cn("absolute inset-0", rightTab !== "files" && "hidden")}>
+              <FileExplorer wc={wcRef.current} refreshTrigger={fileRefresh} />
+            </div>
+
+            {/* Console */}
+            <div className={cn("absolute inset-0", rightTab !== "console" && "hidden")}>
+              <ConsolePanel />
             </div>
           </div>
         </div>

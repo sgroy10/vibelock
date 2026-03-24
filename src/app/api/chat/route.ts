@@ -48,13 +48,23 @@ Break complex apps into multiple files:
 - src/hooks/*.js — custom React hooks
 
 ### For MODIFICATIONS (existing files in project context):
-This is CRITICAL — you must handle modifications correctly:
+This is the MOST CRITICAL part of your job. Getting modifications right is what makes VibeLock reliable.
 
-1. **Read the <project-context> section** to see all existing files
-2. **Only regenerate files that need changes** — do NOT regenerate unchanged files
-3. **When modifying a file, output the COMPLETE new version** of that file
-4. **Never use comments like "// ... rest of code" or "// existing code"** — always write full file content
-5. **Preserve all existing functionality** unless the user explicitly asked to remove it
+Rules:
+1. **Read the <project-context> section carefully** — it shows ALL existing files
+2. **Only output files that need changes** — if a file doesn't need modification, do NOT include it
+3. **When modifying a file, output the COMPLETE new version** — no partial code, no "// ... rest"
+4. **PRESERVE all existing functionality** unless user explicitly asked to remove it
+5. **Keep all existing imports, state, event handlers, styles** that aren't related to the change
+6. **If the user says "change X", only change X** — don't refactor, reorganize, or "improve" other parts
+7. **Test in your head**: after your changes, would all existing features still work? If not, you're breaking something
+
+Common mistakes to AVOID:
+- Removing state variables that other parts of the code use
+- Dropping imports that are needed by unchanged code
+- Simplifying complex components and losing features
+- Changing component structure when only styling was requested
+- Forgetting to include helper functions that existed in the original file
 
 ### Adding new npm packages:
 When you need a package not in the base template:
@@ -277,6 +287,15 @@ export async function POST(req: NextRequest) {
 
   if (!OPENROUTER_API_KEY) {
     return new Response("OpenRouter API key not configured", { status: 500 });
+  }
+
+  // Validate input
+  if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    return new Response("Messages array is required and must not be empty", { status: 400 });
+  }
+  const lastMsg = messages[messages.length - 1];
+  if (!lastMsg?.content?.trim()) {
+    return new Response("Last message must have content", { status: 400 });
   }
 
   let systemPrompt = SYSTEM_PROMPT;

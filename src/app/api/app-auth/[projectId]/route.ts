@@ -114,8 +114,16 @@ export async function POST(
     }
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400, headers: cors });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("App auth error:", error);
-    return NextResponse.json({ error: "Auth failed" }, { status: 500, headers: cors });
+    // Handle Prisma unique constraint violations (duplicate signup race condition)
+    if (error && typeof error === "object" && "code" in error && (error as { code: string }).code === "P2002") {
+      return NextResponse.json({ error: "User already exists" }, { status: 409, headers: cors });
+    }
+    // Handle JSON parse errors
+    if (error instanceof SyntaxError) {
+      return NextResponse.json({ error: "Invalid request body" }, { status: 400, headers: cors });
+    }
+    return NextResponse.json({ error: "Internal server error" }, { status: 500, headers: cors });
   }
 }
