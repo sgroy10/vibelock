@@ -2,10 +2,12 @@ import { NextRequest } from "next/server";
 
 const OPENROUTER_API_KEY =
   process.env.OPEN_ROUTER_API_KEY || process.env.OPENROUTER_API_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // Model priority: env override > Gemini 2.5 Pro (stable, excellent code, 1M context)
-// Gemini 3 Flash Preview was unstable (network errors). 2.5 Pro is proven.
 const MODEL = process.env.VIBELOCK_MODEL || "google/gemini-2.5-pro";
+// Direct Gemini model for fallback (Google AI Studio API)
+const GEMINI_DIRECT_MODEL = "gemini-2.5-flash";
 
 // ─── SYSTEM PROMPT ─────────────────────────────────────────────────────────────
 // This is the brain of VibeLock. Every instruction here directly affects output quality.
@@ -368,12 +370,53 @@ export async function POST(req: NextRequest) {
     return res;
   }
 
-  const response = await callOpenRouter();
+  // Call Gemini directly via Google AI Studio API (fallback)
+  async function callGeminiDirect(): Promise<Response | null> {
+    if (!GEMINI_API_KEY) return null;
+    console.log("[VibeLock] Falling back to Gemini direct API");
 
+    const geminiMessages = openRouterMessages.map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }],
+    }));
+    // Gemini API: system instruction is separate
+    const systemInstruction = { parts: [{ text: systemPrompt }] };
+    const userMessages = geminiMessages.filter((m) => m.role !== "system");
+    // Fix: Gemini requires first message to be "user"
+    if (userMessages.length > 0 && userMessages[0].role !== "user") {
+      userMessages[0].role = "user";
+    }
+
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_DIRECT_MODEL}:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          system_instruction: systemInstruction,
+          contents: userMessages,
+          generationConfig: { maxOutputTokens: 32000 },
+        }),
+      }
+    );
+    return res;
+  }
+
+  let response = await callOpenRouter();
+
+  // If OpenRouter fails, try Gemini direct
+  let useGeminiDirect = false;
   if (!response.ok) {
     const err = await response.text();
-    console.error("OpenRouter error:", err);
-    return new Response(`LLM error: ${response.status}`, { status: 502 });
+    console.error("OpenRouter error:", response.status, err);
+    const geminiResponse = await callGeminiDirect();
+    if (geminiResponse && geminiResponse.ok) {
+      response = geminiResponse;
+      useGeminiDirect = true;
+      console.log("[VibeLock] Gemini direct fallback succeeded");
+    } else {
+      return new Response(`LLM error: ${response.status}`, { status: 502 });
+    }
   }
 
   const encoder = new TextEncoder();
@@ -405,7 +448,11 @@ export async function POST(req: NextRequest) {
 
             try {
               const parsed = JSON.parse(data);
-              const content = parsed.choices?.[0]?.delta?.content;
+              // OpenRouter format: choices[0].delta.content
+              // Gemini direct format: candidates[0].content.parts[0].text
+              const content = useGeminiDirect
+                ? parsed.candidates?.[0]?.content?.parts?.[0]?.text
+                : parsed.choices?.[0]?.delta?.content;
               if (content) {
                 controller.enqueue(encoder.encode(content));
               }
