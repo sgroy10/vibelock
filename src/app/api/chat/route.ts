@@ -3,8 +3,9 @@ import { NextRequest } from "next/server";
 const OPENROUTER_API_KEY =
   process.env.OPEN_ROUTER_API_KEY || process.env.OPENROUTER_API_KEY;
 
-// Model priority: env override > Gemini 3 Flash (pro-quality at flash pricing)
-const MODEL = process.env.VIBELOCK_MODEL || "google/gemini-3-flash-preview";
+// Model priority: env override > Gemini 2.5 Pro (stable, excellent code, 1M context)
+// Gemini 3 Flash Preview was unstable (network errors). 2.5 Pro is proven.
+const MODEL = process.env.VIBELOCK_MODEL || "google/gemini-2.5-pro";
 
 // ─── SYSTEM PROMPT ─────────────────────────────────────────────────────────────
 // This is the brain of VibeLock. Every instruction here directly affects output quality.
@@ -337,9 +338,9 @@ export async function POST(req: NextRequest) {
     })),
   ];
 
-  const response = await fetch(
-    "https://openrouter.ai/api/v1/chat/completions",
-    {
+  // Call OpenRouter with one retry on failure
+  async function callOpenRouter(): Promise<Response> {
+    const options = {
       method: "POST",
       headers: {
         Authorization: `Bearer ${OPENROUTER_API_KEY}`,
@@ -353,8 +354,21 @@ export async function POST(req: NextRequest) {
         stream: true,
         max_tokens: 32000,
       }),
+    };
+
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", options);
+    if (!res.ok) {
+      // Retry once on 5xx or rate limit
+      if (res.status >= 500 || res.status === 429) {
+        console.warn(`OpenRouter ${res.status}, retrying in 2s...`);
+        await new Promise((r) => setTimeout(r, 2000));
+        return fetch("https://openrouter.ai/api/v1/chat/completions", options);
+      }
     }
-  );
+    return res;
+  }
+
+  const response = await callOpenRouter();
 
   if (!response.ok) {
     const err = await response.text();
