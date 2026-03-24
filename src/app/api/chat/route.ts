@@ -3,8 +3,8 @@ import { NextRequest } from "next/server";
 const OPENROUTER_API_KEY =
   process.env.OPEN_ROUTER_API_KEY || process.env.OPENROUTER_API_KEY;
 
-// Model priority: env override > Claude Sonnet 4 (best quality) > Gemini Flash (fallback)
-const MODEL = process.env.VIBELOCK_MODEL || "anthropic/claude-sonnet-4";
+// Model priority: env override > Gemini 3 Flash (pro-quality at flash pricing)
+const MODEL = process.env.VIBELOCK_MODEL || "google/gemini-3-flash-preview";
 
 // ─── SYSTEM PROMPT ─────────────────────────────────────────────────────────────
 // This is the brain of VibeLock. Every instruction here directly affects output quality.

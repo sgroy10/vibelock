@@ -31,8 +31,11 @@ export interface ExecutionResult {
 /** Write a file to WebContainer, creating directories as needed */
 async function writeFile(wc: WebContainer, op: FileOp): Promise<ExecutionResult> {
   try {
-    // Ensure parent directories exist
-    const parts = op.path.split("/");
+    // Safety: strip any leaked vibelock tags from path and content
+    const cleanPath = op.path.replace(/<\/?vibelock-[^>]*>/g, "").trim();
+    const cleanContent = op.content.replace(/<\/vibelock-file\s*>$/g, "").replace(/<\/vibelock-shel[^>]*>$/g, "");
+
+    const parts = cleanPath.split("/");
     if (parts.length > 1) {
       let dir = "";
       for (let i = 0; i < parts.length - 1; i++) {
@@ -45,11 +48,11 @@ async function writeFile(wc: WebContainer, op: FileOp): Promise<ExecutionResult>
       }
     }
 
-    await wc.fs.writeFile(op.path, op.content);
-    return { success: true, output: `Created ${op.path}`, error: "", op };
+    await wc.fs.writeFile(cleanPath, cleanContent);
+    return { success: true, output: `Created ${cleanPath}`, error: "", op };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    return { success: false, output: "", error: `Failed to write ${op.path}: ${msg}`, op };
+    return { success: false, output: "", error: `Failed to write ${op.path.replace(/<[^>]*>/g, "")}: ${msg}`, op };
   }
 }
 
@@ -60,15 +63,21 @@ async function runShell(
   onOutput?: (data: string) => void
 ): Promise<ExecutionResult> {
   try {
-    const parts = op.command.split(" ");
+    // Safety: strip any leaked vibelock tags from command
+    const cleanCmd = op.command
+      .replace(/<\/?vibelock-[^>]*>/g, "")
+      .replace(/```/g, "")
+      .trim();
+
+    const parts = cleanCmd.split(" ");
     const cmd = parts[0];
     const args = parts.slice(1);
 
     // Detect if this is a long-running dev server command
     const isDevServer =
-      op.command.includes("run dev") ||
-      op.command.includes("run start") ||
-      op.command.includes("vite");
+      cleanCmd.includes("run dev") ||
+      cleanCmd.includes("run start") ||
+      cleanCmd.includes("vite");
 
     // Kill old dev server before starting a new one
     if (isDevServer) {
