@@ -164,7 +164,7 @@ export async function executeOps(
 }
 
 /** Format errors for sending back to the AI for retry */
-export function formatErrorForRetry(errors: ExecutionResult[]): string {
+export function formatErrorForRetry(errors: ExecutionResult[], consoleErrors?: string): string {
   const errorMessages = errors
     .map((e) => {
       const opDesc =
@@ -175,5 +175,13 @@ export function formatErrorForRetry(errors: ExecutionResult[]): string {
     })
     .join("\n\n");
 
-  return `The following errors occurred while building the app. Please fix them:\n\n${errorMessages}\n\nGenerate the corrected files using <vibelock-file> and <vibelock-shell> tags.`;
+  let msg = `The following errors occurred while building the app:\n\n${errorMessages}`;
+
+  if (consoleErrors) {
+    msg += `\n\nBrowser console errors:\n${consoleErrors}`;
+  }
+
+  msg += `\n\nPlease fix these errors. Read the <project-context> to see current files, then regenerate ONLY the files that need fixing. Use <vibelock-file> and <vibelock-shell> tags.`;
+
+  return msg;
 }

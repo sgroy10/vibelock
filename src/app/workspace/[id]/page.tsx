@@ -3,7 +3,8 @@
 import { useParams, useSearchParams } from "next/navigation";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { cn } from "@/lib/cn";
-import { getWebContainer } from "@/lib/webcontainer";
+import { getWebContainer, isTemplateReady, readProjectFiles } from "@/lib/webcontainer";
+import { LOCKED_CONFIG_FILES } from "@/lib/golden-template";
 import { StreamParser, type VibeLockOp } from "@/lib/agent/parser";
 import { detectLanguage, SUPPORTED_LANGUAGES, type Language } from "@/lib/language";
 import { detectConstraints, formatConstraintsForPrompt, type Constraint } from "@/lib/speclock";
@@ -24,6 +25,7 @@ function cleanDisplay(text: string): string {
   return clean;
 }
 import { executeOps, formatErrorForRetry } from "@/lib/agent/executor";
+import { startConsoleCapture, getConsoleErrors, clearConsoleLogs } from "@/lib/console-capture";
 import { useWorkspaceStore } from "@/stores/workspace";
 import type { WebContainer } from "@webcontainer/api";
 
@@ -78,23 +80,33 @@ export default function WorkspacePage() {
   const isStreaming = phase === "streaming";
   const isBusy = phase !== "idle" && phase !== "ready" && phase !== "error";
 
+  const [templateInstalled, setTemplateInstalled] = useState(false);
+
+  // Start listening for console errors from preview iframe
   useEffect(() => {
+    startConsoleCapture();
+    return () => {}; // cleanup handled by startConsoleCapture internally
+  }, []);
+
+  useEffect(() => {
+    setPhase("installing", "Setting up sandbox...");
     getWebContainer().then((wc) => {
       wcRef.current = wc;
       setWcReady(true);
+      setTemplateInstalled(isTemplateReady());
+      setPhase("idle");
+
       wc.on("server-ready", (_port: number, url: string) => {
         setPreviewUrl(url);
         setPhase("ready");
-        // Add completion message
         setMessages((prev) => {
           const updated = [...prev];
-          // Update the last assistant message to show completion
           if (updated.length > 0 && updated[updated.length - 1].role === "assistant") {
             const existing = updated[updated.length - 1].content;
             if (existing === "Building your app..." || !existing.includes("ready")) {
               updated[updated.length - 1] = {
                 role: "assistant",
-                content: "Your app is ready! Check the preview on the left. You can continue describing changes below.",
+                content: "Your app is ready! Check the preview. You can keep describing changes below.",
               };
             }
           }
@@ -116,12 +128,25 @@ export default function WorkspacePage() {
 
   const streamChat = useCallback(
     async (chatMessages: Message[]): Promise<{ text: string; ops: VibeLockOp[] }> => {
+      // Phase 1: Context Engine — read current project files and send to AI
+      let projectContext: Record<string, string> = {};
+      const wc = wcRef.current;
+      if (wc) {
+        try {
+          projectContext = await readProjectFiles(wc);
+        } catch {
+          // fail silently — AI will work without context
+        }
+      }
+
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: chatMessages,
           projectId,
+          projectContext, // existing files for the AI to reference
+          isFirstMessage: chatMessages.filter(m => m.role === "user").length === 1,
           constraints: constraints.map((c) => c.text),
           secrets: {
             supabaseUrl: secrets.supabaseUrl || null,
@@ -219,11 +244,25 @@ export default function WorkspacePage() {
     chatMessages: Message[],
     attempt = 0
   ) => {
+    // Filter out config files that AI shouldn't regenerate (golden template handles these)
+    // Exception: package.json is allowed through when AI needs to add new dependencies
+    ops = ops.filter((op) => {
+      if (op.type === "file" && op.path !== "package.json" && LOCKED_CONFIG_FILES.has(op.path)) {
+        appendTerminal(`⏭ Skipping locked config: ${op.path}\n`);
+        return false;
+      }
+      return true;
+    });
+
     const hasInstall = ops.some((o) => o.type === "shell" && o.command.includes("install"));
     const hasDev = ops.some((o) => o.type === "shell" && (o.command.includes("dev") || o.command.includes("start")));
     const hasFiles = ops.some((o) => o.type === "file");
+    const hasNewDeps = ops.some((o) => o.type === "file" && o.path === "package.json");
 
-    if (hasFiles && !hasInstall) ops.push({ type: "shell", command: "npm install" });
+    // Only run npm install if there are new deps or template wasn't pre-installed
+    if (hasFiles && !hasInstall && (hasNewDeps || !isTemplateReady())) {
+      ops.push({ type: "shell", command: "npm install" });
+    }
     if (hasFiles && !hasDev) ops.push({ type: "shell", command: "npm run dev" });
 
     const fileCount = ops.filter((o) => o.type === "file").length;
@@ -240,16 +279,16 @@ export default function WorkspacePage() {
     if (errors.length === 0) {
       // Wait for dev server — poll for up to 45 seconds
       appendTerminal("⏳ Waiting for dev server...\n");
-      const store = useWorkspaceStore.getState;
+      const getStore = useWorkspaceStore.getState;
       for (let i = 0; i < 15; i++) {
         await new Promise((resolve) => setTimeout(resolve, 3000));
-        if (store().previewUrl) {
+        if (getStore().previewUrl) {
           appendTerminal("✅ Dev server is ready!\n");
           return;
         }
       }
       // If still no preview after 45s, something might be wrong but don't error out
-      if (!store().previewUrl) {
+      if (!getStore().previewUrl) {
         appendTerminal("⚠️ Dev server is taking long. It may still start...\n");
         setPhase("starting", "Server is still starting...");
       }
@@ -257,7 +296,10 @@ export default function WorkspacePage() {
 
     if (errors.length > 0 && attempt < MAX_RETRIES) {
       incrementRetry();
-      const errorMsg = formatErrorForRetry(errors);
+      // Debug-first: collect console errors from the preview iframe
+      const consoleErrors = getConsoleErrors();
+      const errorMsg = formatErrorForRetry(errors, consoleErrors);
+      clearConsoleLogs();
       appendTerminal(`\n⚠️ Error (attempt ${attempt + 1}/${MAX_RETRIES}). Auto-fixing...\n`);
       const retryMessages: Message[] = [
         ...chatMessages,
