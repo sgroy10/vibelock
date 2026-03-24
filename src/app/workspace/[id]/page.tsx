@@ -17,12 +17,15 @@ import JSZip from "jszip";
 /** Strip vibelock tags AND any code content from display text */
 function cleanDisplay(text: string): string {
   let clean = text;
+  // Strip markdown code fences wrapping vibelock tags
+  clean = clean.replace(/```(?:xml|html|jsx?|tsx?|javascript|typescript|text)?\s*\n?(?=<\/?vibelock-)/g, "");
+  clean = clean.replace(/(?<=<\/vibelock-(?:file|shell)>)\s*\n?```/g, "");
   // Remove complete tags with content
   clean = clean.replace(/<vibelock-file[^>]*>[\s\S]*?<\/vibelock-file>/g, "");
-  clean = clean.replace(/<vibelock-shell>[\s\S]*?<\/vibelock-shell>/g, "");
+  clean = clean.replace(/<vibelock-shell[^>]*>[\s\S]*?<\/vibelock-shell>/g, "");
   // Remove incomplete tags (during streaming, closing tag hasn't arrived yet)
   clean = clean.replace(/<vibelock-file[^>]*>[\s\S]*/g, "");
-  clean = clean.replace(/<vibelock-shell>[\s\S]*/g, "");
+  clean = clean.replace(/<vibelock-shell[^>]*>[\s\S]*/g, "");
   // Remove any remaining tag fragments
   clean = clean.replace(/<\/?vibelock-[^>]*>/g, "");
   clean = clean.replace(/\n{3,}/g, "\n\n").trim();
@@ -190,6 +193,10 @@ export default function WorkspacePage() {
           return updated;
         });
       }
+
+      // CRITICAL: flush captures any in-progress file that wasn't closed
+      // This is the fix for dropped files (e.g., 4 planned but only 3 written)
+      parser.flush();
 
       return { text: fullText, ops: parser.getAllOps() };
     },
