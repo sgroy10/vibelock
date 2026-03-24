@@ -53,18 +53,68 @@ const SCRIPT_RANGES: [string, RegExp][] = [
 ];
 
 /**
- * Detect the language of user input based on script analysis.
- * Returns "en" (English) as default.
+ * Common Romanized Hindi/Hinglish words.
+ * If 2+ of these appear in Latin-script text, it's Hinglish.
+ */
+const HINGLISH_WORDS = new Set([
+  // Verbs
+  "banao", "karo", "dikhao", "batao", "bhejo", "likho", "padho", "kholna",
+  "hatao", "lagao", "jodo", "todo", "badlo", "rakho", "chalo", "dekho",
+  "samjhao", "sikhao", "dalo", "nikalo", "bechna", "khareedna",
+  // Pronouns / common words
+  "mujhe", "mera", "meri", "mere", "humko", "hamara", "tumhara", "uska",
+  "iska", "sabka", "kisi", "kuch", "sab",
+  // Postpositions / connectors
+  "chahiye", "chahte", "wala", "wali", "wale", "ke", "liye", "mein",
+  "par", "se", "ko", "ka", "ki", "hai", "hain", "tha", "the",
+  // Nouns
+  "app", "dukaan", "ghar", "kaam", "paisa", "cheez", "jagah", "tarika",
+  "samaan", "saman", "namaste",
+  // Adjectives
+  "accha", "bura", "bada", "chhota", "naya", "purana", "sundar", "asaan",
+  // Common phrases
+  "ek", "do", "teen", "aur", "ya", "lekin", "abhi", "pehle", "baad",
+  "yahan", "wahan", "kaise", "kyun", "kya", "kab", "kitna", "kaun",
+  // Gujarati Romanized (bonus)
+  "banavo", "karo", "batavo", "moklyo", "mari", "maru", "tamaru",
+  "joiye", "karvu", "apo", "nakhi", "maate", "sathe",
+]);
+
+/**
+ * Detect if text contains Romanized Hindi/Hinglish.
+ * Returns true if 2+ Hinglish words found in the text.
+ */
+function isHinglish(text: string): boolean {
+  const words = text.toLowerCase().split(/\s+/);
+  let count = 0;
+  for (const word of words) {
+    // Strip punctuation
+    const clean = word.replace(/[^a-z]/g, "");
+    if (HINGLISH_WORDS.has(clean)) {
+      count++;
+      if (count >= 2) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Detect the language of user input.
+ * Priority: Native script detection → Romanized Hindi → English default.
  */
 export function detectLanguage(text: string): Language {
   // Check for non-Latin scripts first
   for (const [script, regex] of SCRIPT_RANGES) {
     const matches = text.match(new RegExp(regex.source, "g"));
     if (matches && matches.length >= 2) {
-      // Find the language for this script
       const lang = SUPPORTED_LANGUAGES.find((l) => l.script === script);
       if (lang) return lang;
     }
+  }
+
+  // Check for Romanized Hindi/Hinglish (Latin script but Hindi words)
+  if (isHinglish(text)) {
+    return { code: "hi-latn", name: "Hinglish", nativeName: "Hinglish", script: "latin", direction: "ltr" };
   }
 
   // Default to English

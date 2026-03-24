@@ -2,7 +2,9 @@ import { NextRequest } from "next/server";
 
 const OPENROUTER_API_KEY =
   process.env.OPEN_ROUTER_API_KEY || process.env.OPENROUTER_API_KEY;
-const MODEL = "google/gemini-2.5-flash";
+
+// Model priority: env override > Claude Sonnet 4 (best quality) > Gemini Flash (fallback)
+const MODEL = process.env.VIBELOCK_MODEL || "anthropic/claude-sonnet-4";
 
 // ─── SYSTEM PROMPT ─────────────────────────────────────────────────────────────
 // This is the brain of VibeLock. Every instruction here directly affects output quality.
@@ -30,6 +32,7 @@ After code, give a one-line summary of what was built or changed.
 - ONLY use Gujarati if the user's message contains Gujarati script (ગુજરાતી).
 - ONLY use Arabic if the user's message contains Arabic script (العربية).
 - ONLY use Spanish if the user's message is clearly in Spanish.
+- If the user writes in ROMANIZED HINDI (Hinglish) like "mujhe ek todo app banao" — respond in the SAME Romanized Hindi style. Generate UI labels in Hindi (Devanagari script) but respond conversationally in Hinglish.
 - "build a todo app" is ENGLISH — respond in ENGLISH.
 - Variable names and code syntax are ALWAYS in English.
 - UI labels and text content must match the detected language.

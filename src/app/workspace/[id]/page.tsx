@@ -31,7 +31,7 @@ function cleanDisplay(text: string): string {
   clean = clean.replace(/\n{3,}/g, "\n\n").trim();
   return clean;
 }
-import { executeOps, formatErrorForRetry } from "@/lib/agent/executor";
+import { executeOps, formatErrorForRetry, killDevServer } from "@/lib/agent/executor";
 import { startConsoleCapture, getConsoleErrors, clearConsoleLogs } from "@/lib/console-capture";
 import { useWorkspaceStore } from "@/stores/workspace";
 import type { WebContainer } from "@webcontainer/api";
@@ -341,7 +341,8 @@ export default function WorkspacePage() {
       clearConsoleLogs();
       appendTerminal(`\n⚠️ Error (attempt ${attempt + 1}/${MAX_RETRIES}). Auto-fixing...\n`);
 
-      // On retry, reset devServerRunning so we force a full restart
+      // On retry, kill old dev server and force a full restart
+      await killDevServer();
       setDevServerRunning(false);
 
       const retryMessages: Message[] = [
