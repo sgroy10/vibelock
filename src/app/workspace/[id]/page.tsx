@@ -108,21 +108,9 @@ export default function WorkspacePage() {
 
       wc.on("server-ready", (_port: number, url: string) => {
         setPreviewUrl(url);
-        setPhase("ready");
         setDevServerRunning(true);
-        setMessages((prev) => {
-          const updated = [...prev];
-          if (updated.length > 0 && updated[updated.length - 1].role === "assistant") {
-            const existing = updated[updated.length - 1].content;
-            if (existing === "Building your app..." || !existing.includes("ready")) {
-              updated[updated.length - 1] = {
-                role: "assistant",
-                content: "Your app is ready! Check the preview. You can keep describing changes below.",
-              };
-            }
-          }
-          return updated;
-        });
+        // Don't set "ready" here — let executeWithRetry check for runtime
+        // errors first. Only set ready if no errors found.
       });
     });
   }, [setPhase, setPreviewUrl]);
@@ -305,29 +293,66 @@ export default function WorkspacePage() {
     );
 
     if (errors.length === 0 && useHMR) {
-      // HMR path — files written, Vite picks them up
-      // Wait a moment for HMR to process, then check if iframe loads
       appendTerminal("⏳ Waiting for HMR update...\n");
       await new Promise((resolve) => setTimeout(resolve, 2000));
-      appendTerminal("✅ Files updated via HMR\n");
-      setPhase("ready");
-      setFileRefresh((n) => n + 1);
-      return;
+      // Check for runtime errors after HMR
+      const runtimeErrors = getConsoleErrors();
+      if (runtimeErrors && attempt < MAX_RETRIES) {
+        appendTerminal("⚠️ Runtime error detected after HMR. Auto-fixing...\n");
+        errors.push({ success: false, output: "", error: runtimeErrors, op: { type: "shell", command: "runtime" } });
+      } else {
+        appendTerminal("✅ Files updated via HMR\n");
+        setPhase("ready");
+        setFileRefresh((n) => n + 1);
+        return;
+      }
     }
 
     if (errors.length === 0) {
       // Wait for dev server — poll for up to 45 seconds
       appendTerminal("⏳ Waiting for dev server...\n");
       const getStore = useWorkspaceStore.getState;
+      let serverStarted = false;
       for (let i = 0; i < 15; i++) {
         await new Promise((resolve) => setTimeout(resolve, 3000));
         if (getStore().previewUrl) {
-          appendTerminal("✅ Dev server is ready!\n");
-          setFileRefresh((n) => n + 1);
-          return;
+          serverStarted = true;
+          break;
         }
       }
-      if (!getStore().previewUrl) {
+
+      if (serverStarted) {
+        // Server started — but wait 3s and check for RUNTIME errors
+        appendTerminal("🔍 Checking for runtime errors...\n");
+        clearConsoleLogs();
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        const runtimeErrors = getConsoleErrors();
+
+        if (runtimeErrors && attempt < MAX_RETRIES) {
+          // App built but crashes at runtime — auto-fix!
+          appendTerminal("⚠️ App has runtime errors. Auto-fixing...\n");
+          setPhase("error", "Runtime error — fixing...");
+          errors.push({ success: false, output: "", error: `Runtime error in browser:\n${runtimeErrors}`, op: { type: "shell", command: "runtime" } });
+        } else {
+          appendTerminal("✅ App is running!\n");
+          setPhase("ready");
+          setFileRefresh((n) => n + 1);
+          setMessages((prev) => {
+            const updated = [...prev];
+            if (updated.length > 0 && updated[updated.length - 1].role === "assistant") {
+              const existing = updated[updated.length - 1].content;
+              if (existing === "Building your app..." || !existing.includes("ready")) {
+                updated[updated.length - 1] = {
+                  role: "assistant",
+                  content: "Your app is ready! Check the preview. You can keep describing changes below.",
+                };
+              }
+            }
+            return updated;
+          });
+          return;
+        }
+      } else {
         appendTerminal("⚠️ Dev server taking long. It may still start...\n");
         setPhase("starting", "Server is still starting...");
       }
