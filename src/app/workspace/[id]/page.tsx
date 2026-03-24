@@ -67,6 +67,7 @@ export default function WorkspacePage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const wcRef = useRef<WebContainer | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [wcReady, setWcReady] = useState(false);
 
   const {
@@ -266,19 +267,23 @@ export default function WorkspacePage() {
     const hasFiles = ops.some((o) => o.type === "file");
     const hasNewDeps = ops.some((o) => o.type === "file" && o.path === "package.json");
     const onlySrcFiles = hasFiles && ops.filter((o) => o.type === "file").every((o) => o.type === "file" && o.path.startsWith("src/"));
+    const isRetry = attempt > 0;
 
-    // HMR: If dev server is running and only src/ files changed, skip install + restart
-    // Vite HMR will pick up the changes automatically
-    if (devServerRunning && onlySrcFiles && !hasNewDeps) {
-      // Just write files — Vite HMR handles the rest
+    // HMR: ONLY use for user-initiated modifications (not retries)
+    // During retries, always restart — the app might be in a broken state
+    const useHMR = devServerRunning && onlySrcFiles && !hasNewDeps && !isRetry;
+
+    if (useHMR) {
       appendTerminal("⚡ HMR: Only src/ files changed, skipping restart\n");
-      ops = ops.filter((o) => o.type === "file"); // strip all shell commands
+      ops = ops.filter((o) => o.type === "file");
     } else {
-      // Only run npm install if there are new deps or template wasn't pre-installed
+      // Always ensure npm install + dev server start
       if (hasFiles && !hasInstall && (hasNewDeps || !isTemplateReady())) {
         ops.push({ type: "shell", command: "npm install" });
       }
-      if (hasFiles && !hasDev) ops.push({ type: "shell", command: "npm run dev" });
+      if (hasFiles && !hasDev) {
+        ops.push({ type: "shell", command: "npm run dev" });
+      }
     }
 
     const fileCount = ops.filter((o) => o.type === "file").length;
@@ -292,9 +297,12 @@ export default function WorkspacePage() {
       secrets.getAllEnvVars()
     );
 
-    if (errors.length === 0 && devServerRunning && onlySrcFiles && !hasNewDeps) {
+    if (errors.length === 0 && useHMR) {
       // HMR path — files written, Vite picks them up
-      appendTerminal("✅ Files updated — HMR refreshing preview\n");
+      // Wait a moment for HMR to process, then check if iframe loads
+      appendTerminal("⏳ Waiting for HMR update...\n");
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      appendTerminal("✅ Files updated via HMR\n");
       setPhase("ready");
       setFileRefresh((n) => n + 1);
       return;
@@ -308,12 +316,12 @@ export default function WorkspacePage() {
         await new Promise((resolve) => setTimeout(resolve, 3000));
         if (getStore().previewUrl) {
           appendTerminal("✅ Dev server is ready!\n");
+          setFileRefresh((n) => n + 1);
           return;
         }
       }
-      // If still no preview after 45s, something might be wrong but don't error out
       if (!getStore().previewUrl) {
-        appendTerminal("⚠️ Dev server is taking long. It may still start...\n");
+        appendTerminal("⚠️ Dev server taking long. It may still start...\n");
         setPhase("starting", "Server is still starting...");
       }
     }
@@ -325,6 +333,10 @@ export default function WorkspacePage() {
       const errorMsg = formatErrorForRetry(errors, consoleErrors);
       clearConsoleLogs();
       appendTerminal(`\n⚠️ Error (attempt ${attempt + 1}/${MAX_RETRIES}). Auto-fixing...\n`);
+
+      // On retry, reset devServerRunning so we force a full restart
+      setDevServerRunning(false);
+
       const retryMessages: Message[] = [
         ...chatMessages,
         { role: "assistant", content: "(previous attempt had errors)" },
@@ -637,12 +649,27 @@ export default function WorkspacePage() {
                   }}
                 >
                   <iframe
+                    ref={iframeRef}
                     src={previewUrl}
                     className="w-full h-full border-0 bg-white"
                     title="App Preview"
                     sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
                   />
                 </div>
+              )}
+
+              {/* Reload button — shown when preview URL exists */}
+              {previewUrl && (
+                <button
+                  onClick={() => {
+                    if (iframeRef.current) {
+                      iframeRef.current.src = previewUrl + (previewUrl.includes("?") ? "&" : "?") + "r=" + Date.now();
+                    }
+                  }}
+                  className="absolute bottom-3 right-3 z-10 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-white border border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
+                >
+                  ↻ Reload
+                </button>
               )}
 
               {!previewUrl && phase === "idle" && (

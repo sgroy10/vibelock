@@ -88,7 +88,37 @@ export default defineConfig({ plugins: [react()] })
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
-ReactDOM.createRoot(document.getElementById('root')).render(<React.StrictMode><App /></React.StrictMode>)
+
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null } }
+  static getDerivedStateFromError(error) { return { error } }
+  componentDidCatch(error, info) {
+    console.error('App crashed:', error, info?.componentStack)
+  }
+  render() {
+    if (this.state.error) {
+      return React.createElement('div', {
+        style: { padding: '2rem', maxWidth: '600px', margin: '3rem auto', fontFamily: 'Inter, system-ui, sans-serif' }
+      },
+        React.createElement('div', {
+          style: { background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '12px', padding: '1.5rem' }
+        },
+          React.createElement('h2', { style: { color: '#DC2626', fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.5rem' } }, 'Something went wrong'),
+          React.createElement('p', { style: { color: '#7F1D1D', fontSize: '0.875rem', marginBottom: '1rem' } }, String(this.state.error?.message || this.state.error)),
+          React.createElement('button', {
+            onClick: () => this.setState({ error: null }),
+            style: { background: '#FF6B2C', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem' }
+          }, 'Try again')
+        )
+      )
+    }
+    return this.props.children
+  }
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  React.createElement(ErrorBoundary, null, React.createElement(React.StrictMode, null, React.createElement(App)))
+)
 `,
 
   "src/App.jsx": `export default function App() {
