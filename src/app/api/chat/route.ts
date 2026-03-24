@@ -245,8 +245,8 @@ Generate src/App.jsx and any other src/ files needed. Do NOT generate config fil
   }
 
   // For subsequent messages, inject all current files
-  // Budget: ~60% of context for files, cap at ~80K chars
-  const MAX_CONTEXT_CHARS = 80_000;
+  // Budget: cap at 40K chars to avoid request size issues
+  const MAX_CONTEXT_CHARS = 40_000;
   let totalChars = 0;
   const includedFiles: string[] = [];
   const skippedFiles: string[] = [];
@@ -283,7 +283,13 @@ ${includedFiles.join("\n\n")}`;
 // ─── API ROUTE ─────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  const { messages, constraints, secrets, projectContext, isFirstMessage } = await req.json();
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return new Response("Invalid JSON in request body", { status: 400 });
+  }
+  const { messages, constraints, secrets, projectContext, isFirstMessage } = body;
 
   if (!OPENROUTER_API_KEY) {
     return new Response("OpenRouter API key not configured", { status: 500 });

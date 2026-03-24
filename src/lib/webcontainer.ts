@@ -92,8 +92,8 @@ export async function readProjectFiles(wc: WebContainer): Promise<Record<string,
           if (SKIP_FILES.has(entry.name)) continue;
           try {
             const content = await wc.fs.readFile(fullPath, "utf-8");
-            // Skip large files (>20KB) — likely generated/binary
-            if (content.length <= 20_000) {
+            // Skip large files (>10KB) — keep context payload manageable
+            if (content.length <= 10_000) {
               files[fullPath] = content;
             }
           } catch {
