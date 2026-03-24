@@ -25,10 +25,12 @@
     "better-auth": "^1.2.0",
     "clsx": "^2.1.0",
     "framer-motion": "^12.0.0",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.475.0",
     "next": "^15.3.8",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
     "tailwind-merge": "^3.0.0",
     "zustand": "^5.0.0"
   },

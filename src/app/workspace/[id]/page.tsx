@@ -11,6 +11,8 @@ import { detectConstraints, formatConstraintsForPrompt, type Constraint } from "
 import { useSecretsStore } from "@/stores/secrets";
 import FileExplorer from "@/components/workspace/FileExplorer";
 import ConsolePanel from "@/components/workspace/ConsolePanel";
+import ChatMarkdown from "@/components/workspace/ChatMarkdown";
+import JSZip from "jszip";
 
 /** Strip vibelock tags AND any code content from display text */
 function cleanDisplay(text: string): string {
@@ -59,6 +61,8 @@ export default function WorkspacePage() {
   const [isListening, setIsListening] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
   const [deployUrl, setDeployUrl] = useState<string | null>(null);
+  const [deviceFrame, setDeviceFrame] = useState<"desktop" | "tablet" | "mobile">("desktop");
+  const [devServerRunning, setDevServerRunning] = useState(false);
   const secrets = useSecretsStore();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -101,6 +105,7 @@ export default function WorkspacePage() {
       wc.on("server-ready", (_port: number, url: string) => {
         setPreviewUrl(url);
         setPhase("ready");
+        setDevServerRunning(true);
         setMessages((prev) => {
           const updated = [...prev];
           if (updated.length > 0 && updated[updated.length - 1].role === "assistant") {
@@ -260,12 +265,21 @@ export default function WorkspacePage() {
     const hasDev = ops.some((o) => o.type === "shell" && (o.command.includes("dev") || o.command.includes("start")));
     const hasFiles = ops.some((o) => o.type === "file");
     const hasNewDeps = ops.some((o) => o.type === "file" && o.path === "package.json");
+    const onlySrcFiles = hasFiles && ops.filter((o) => o.type === "file").every((o) => o.type === "file" && o.path.startsWith("src/"));
 
-    // Only run npm install if there are new deps or template wasn't pre-installed
-    if (hasFiles && !hasInstall && (hasNewDeps || !isTemplateReady())) {
-      ops.push({ type: "shell", command: "npm install" });
+    // HMR: If dev server is running and only src/ files changed, skip install + restart
+    // Vite HMR will pick up the changes automatically
+    if (devServerRunning && onlySrcFiles && !hasNewDeps) {
+      // Just write files — Vite HMR handles the rest
+      appendTerminal("⚡ HMR: Only src/ files changed, skipping restart\n");
+      ops = ops.filter((o) => o.type === "file"); // strip all shell commands
+    } else {
+      // Only run npm install if there are new deps or template wasn't pre-installed
+      if (hasFiles && !hasInstall && (hasNewDeps || !isTemplateReady())) {
+        ops.push({ type: "shell", command: "npm install" });
+      }
+      if (hasFiles && !hasDev) ops.push({ type: "shell", command: "npm run dev" });
     }
-    if (hasFiles && !hasDev) ops.push({ type: "shell", command: "npm run dev" });
 
     const fileCount = ops.filter((o) => o.type === "file").length;
     setPhase("writing", `Creating ${fileCount} files...`);
@@ -277,6 +291,14 @@ export default function WorkspacePage() {
       (p, detail) => setPhase(p as typeof phase, detail),
       secrets.getAllEnvVars()
     );
+
+    if (errors.length === 0 && devServerRunning && onlySrcFiles && !hasNewDeps) {
+      // HMR path — files written, Vite picks them up
+      appendTerminal("✅ Files updated — HMR refreshing preview\n");
+      setPhase("ready");
+      setFileRefresh((n) => n + 1);
+      return;
+    }
 
     if (errors.length === 0) {
       // Wait for dev server — poll for up to 45 seconds
@@ -339,11 +361,15 @@ export default function WorkspacePage() {
     if (!wc) return;
     try {
       const files = await readProjectFiles(wc);
-      const blob = new Blob([JSON.stringify(files, null, 2)], { type: "application/json" });
+      const zip = new JSZip();
+      for (const [path, content] of Object.entries(files)) {
+        zip.file(path, content);
+      }
+      const blob = await zip.generateAsync({ type: "blob" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "vibelock-project.json";
+      a.download = `vibelock-${projectId}.zip`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -473,7 +499,11 @@ export default function WorkspacePage() {
                       : "mr-auto bg-gray-50 text-gray-700 border border-gray-100"
                   )}
                 >
-                  {msg.content || <span className="text-gray-400 italic">Thinking...</span>}
+                  {msg.content ? (
+                    msg.role === "assistant" ? <ChatMarkdown content={msg.content} /> : msg.content
+                  ) : (
+                    <span className="text-gray-400 italic">Thinking...</span>
+                  )}
                 </div>
               ))}
               <div ref={messagesEndRef} />
@@ -566,19 +596,53 @@ export default function WorkspacePage() {
                 {tab === "preview" ? "🖥 Preview" : tab === "files" ? "📁 Files" : "🔍 Console"}
               </button>
             ))}
+
+            {/* Device frame toggles — only show on preview tab */}
+            {rightTab === "preview" && previewUrl && (
+              <div className="ml-auto flex items-center gap-1 pr-2">
+                {([
+                  { key: "desktop", icon: "🖥", w: "100%" },
+                  { key: "tablet", icon: "📱", w: "768px" },
+                  { key: "mobile", icon: "📲", w: "375px" },
+                ] as const).map(({ key, icon }) => (
+                  <button
+                    key={key}
+                    onClick={() => setDeviceFrame(key as typeof deviceFrame)}
+                    className={cn(
+                      "px-1.5 py-1 rounded text-[11px] transition-colors",
+                      deviceFrame === key
+                        ? "bg-orange-50 text-orange-600"
+                        : "text-gray-400 hover:text-gray-600 hover:bg-gray-50"
+                    )}
+                  >
+                    {icon}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Tab content */}
           <div className="flex-1 relative overflow-hidden">
             {/* Preview */}
-            <div className={cn("absolute inset-0", rightTab !== "preview" && "hidden")}>
+            <div className={cn("absolute inset-0 flex items-start justify-center bg-gray-50", rightTab !== "preview" && "hidden")}>
               {previewUrl && (
-                <iframe
-                  src={previewUrl}
-                  className="w-full h-full border-0 bg-white"
-                  title="App Preview"
-                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-                />
+                <div
+                  className="h-full transition-all duration-300 bg-white"
+                  style={{
+                    width: deviceFrame === "mobile" ? "375px" : deviceFrame === "tablet" ? "768px" : "100%",
+                    boxShadow: deviceFrame !== "desktop" ? "0 0 0 1px #e5e7eb, 0 4px 24px rgba(0,0,0,0.08)" : "none",
+                    borderRadius: deviceFrame !== "desktop" ? "8px" : "0",
+                    overflow: "hidden",
+                  }}
+                >
+                  <iframe
+                    src={previewUrl}
+                    className="w-full h-full border-0 bg-white"
+                    title="App Preview"
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+                  />
+                </div>
               )}
 
               {!previewUrl && phase === "idle" && (
