@@ -95,10 +95,14 @@ export class StreamParser {
         const closeIdx = this.buffer.indexOf("</vibelock-file>");
         if (closeIdx !== -1) {
           this.currentContent += this.buffer.slice(0, closeIdx);
+          // Strip markdown code fences from file content
+          let content = this.currentContent;
+          content = content.replace(/^```(?:jsx|tsx|js|ts|javascript|typescript|html|css|json|xml|text)?\s*\n/, "");
+          content = content.replace(/\n```\s*$/, "");
           const op: FileOp = {
             type: "file",
             path: this.currentPath,
-            content: this.currentContent,
+            content,
           };
           newOps.push(op);
           this.ops.push(op);

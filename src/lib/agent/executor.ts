@@ -31,9 +31,18 @@ export interface ExecutionResult {
 /** Write a file to WebContainer, creating directories as needed */
 async function writeFile(wc: WebContainer, op: FileOp): Promise<ExecutionResult> {
   try {
-    // Safety: strip any leaked vibelock tags from path and content
+    // Safety: strip leaked vibelock tags, markdown code fences from content
     const cleanPath = op.path.replace(/<\/?vibelock-[^>]*>/g, "").trim();
-    const cleanContent = op.content.replace(/<\/vibelock-file\s*>$/g, "").replace(/<\/vibelock-shel[^>]*>$/g, "");
+    let cleanContent = op.content;
+    // Strip markdown code fences the AI wraps around file content
+    // e.g., ```jsx\n...code...\n``` or ```javascript\n...code...\n```
+    cleanContent = cleanContent.replace(/^```(?:jsx|tsx|js|ts|javascript|typescript|html|css|json|xml|text|markdown|md)?\s*\n/g, "");
+    cleanContent = cleanContent.replace(/\n```\s*$/g, "");
+    // Strip any vibelock tags that leaked into content
+    cleanContent = cleanContent.replace(/<\/?vibelock-[^>]*>/g, "");
+    // Strip stray code fences in the middle (AI sometimes wraps each section)
+    cleanContent = cleanContent.replace(/```(?:jsx|tsx|js|ts|javascript|typescript|html|css|json)?\s*\n/g, "");
+    cleanContent = cleanContent.replace(/\n```\n/g, "\n");
 
     const parts = cleanPath.split("/");
     if (parts.length > 1) {
