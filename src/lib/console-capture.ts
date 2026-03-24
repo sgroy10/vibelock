@@ -48,9 +48,24 @@ export function stopConsoleCapture() {
   }
 }
 
-/** Get recent console errors/warnings for AI debugging */
+/** Noise patterns to filter from console — these are NOT real app errors */
+const NOISE_PATTERNS = [
+  /websocket connection/i,
+  /WebSocket handshake/i,
+  /\[vite\] server connection lost/i,
+  /\[vite\] connecting\.\.\./i,
+  /hmr/i,
+  /hot update/i,
+  /Empty response/i,
+  /ERR_CONNECTION_REFUSED/i,
+];
+
+/** Get recent console errors/warnings for AI debugging (filtered) */
 export function getConsoleErrors(): string {
-  const errors = consoleLines.filter((l) => l.level === "error" || l.level === "warn");
+  const errors = consoleLines
+    .filter((l) => l.level === "error" || l.level === "warn")
+    .filter((l) => !NOISE_PATTERNS.some((p) => p.test(l.message)));
+
   if (errors.length === 0) return "";
 
   return errors

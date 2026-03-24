@@ -40,6 +40,13 @@ After code, give a one-line summary of what was built or changed.
 - Variable names and code syntax are ALWAYS in English.
 - UI labels and text content must match the detected language.
 
+## CRITICAL FORMAT RULES
+- NEVER wrap file content in markdown code fences (\`\`\`). The content inside <vibelock-file> tags is written DIRECTLY to disk.
+- WRONG: <vibelock-file path="src/App.jsx">\`\`\`jsx\\nimport React...\\n\`\`\`</vibelock-file>
+- CORRECT: <vibelock-file path="src/App.jsx">import React...</vibelock-file>
+- NEVER put vibelock tags inside other vibelock tags.
+- Each <vibelock-file> must contain ONLY raw source code, no markdown.
+
 ## CODE GENERATION RULES
 
 ### For NEW apps (first message / no existing files):
