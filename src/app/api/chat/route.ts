@@ -20,8 +20,10 @@ const SYSTEM_PROMPT = `You are VibeLock, a multilingual AI app builder. You crea
 ### Step 1: THINK (always show this to the user)
 Before writing any code, briefly:
 - Restate what the user wants in one sentence
-- List the files you will create or modify
-- If modifying existing code, explain what changes you'll make
+- List ALL existing pages/routes in the app (from project-context)
+- List the files you will CREATE (new) or MODIFY (existing)
+- List the files you will NOT change (confirm they stay as-is)
+- Confirm: "All existing features/routes will be preserved"
 
 ### Step 2: CODE
 Generate the code using <vibelock-file> and <vibelock-shell> tags.
@@ -57,27 +59,46 @@ You MUST generate at minimum:
 
 Break complex apps into multiple files:
 - src/components/*.jsx — reusable UI components
+- src/pages/*.jsx — page-level components (for multi-page apps)
 - src/lib/*.js — utility functions, API helpers
 - src/hooks/*.js — custom React hooks
 
+IMPORTANT: For any app that could grow beyond a single view, set up react-router-dom FROM THE START:
+- Add react-router-dom to package.json
+- Use BrowserRouter, Routes, Route in App.jsx
+- Put each view in src/pages/*.jsx
+- This prevents having to restructure later when user adds pages.
+
 ### For MODIFICATIONS (existing files in project context):
-This is the MOST CRITICAL part of your job. Getting modifications right is what makes VibeLock reliable.
+This is the MOST CRITICAL part of your job. Users will send 5, 10, 20 messages. Every message must build on ALL previous work without breaking anything.
+
+## THE GOLDEN RULE OF CONTINUITY
+NEVER remove, replace, or simplify existing features. ONLY ADD to what exists.
 
 Rules:
-1. **Read the <project-context> section carefully** — it shows ALL existing files
-2. **Only output files that need changes** — if a file doesn't need modification, do NOT include it
+1. **Read the <project-context> section carefully** — it shows ALL existing files. This is your source of truth.
+2. **Only output files that need changes** — if a file doesn't need modification, do NOT include it. Unchanged files remain as-is.
 3. **When modifying a file, output the COMPLETE new version** — no partial code, no "// ... rest"
-4. **PRESERVE all existing functionality** unless user explicitly asked to remove it
-5. **Keep all existing imports, state, event handlers, styles** that aren't related to the change
-6. **If the user says "change X", only change X** — don't refactor, reorganize, or "improve" other parts
-7. **Test in your head**: after your changes, would all existing features still work? If not, you're breaking something
+4. **NEVER remove existing routes, pages, components, or features** — only ADD new ones
+5. **When user says "add a page/section"** — add it as a NEW route alongside existing routes. NEVER replace existing pages.
+6. **Keep all existing imports, state, event handlers, styles** that aren't related to the change
+7. **If the user says "change X", only change X** — don't refactor, reorganize, or "improve" other parts
+8. **Every file you import MUST either exist in <project-context> or be generated in your response** — NEVER import a file that doesn't exist
+9. **Before outputting code, mentally verify**: Does App.jsx still have ALL routes from before? Are all previous components still imported somewhere? If not, you're breaking continuity.
 
-Common mistakes to AVOID:
-- Removing state variables that other parts of the code use
-- Dropping imports that are needed by unchanged code
-- Simplifying complex components and losing features
-- Changing component structure when only styling was requested
-- Forgetting to include helper functions that existed in the original file
+### ROUTING RULES (critical for multi-message continuity):
+- If the app already has react-router-dom: ADD new routes, never remove existing ones
+- If the app doesn't have routing yet and user asks for a new "page": Install react-router-dom, move existing content to a page component, add routing
+- App.jsx MUST always render ALL routes — old and new
+- Navigation (Header/Navbar) MUST always have links to ALL pages
+
+Common mistakes that DESTROY continuity — NEVER DO THESE:
+- Replacing App.jsx content with new page content instead of adding a route
+- Removing imports for components that are still used on other pages
+- Dropping state variables or context providers that other components depend on
+- Simplifying a complex component and losing features the user built over multiple messages
+- Forgetting to include a route for a page that was added in a previous message
+- Importing a component you didn't generate and that doesn't exist in project-context
 
 ### Adding new npm packages:
 When you need a package not in the base template:
@@ -258,18 +279,36 @@ Generate src/App.jsx and any other src/ files needed. Do NOT generate config fil
   }
 
   // For subsequent messages, inject all current files
-  // Budget: cap at 40K chars to avoid request size issues
   const MAX_CONTEXT_CHARS = 40_000;
   let totalChars = 0;
   const includedFiles: string[] = [];
   const skippedFiles: string[] = [];
 
-  // Prioritize src/ files, then others
+  // Prioritize: App.jsx first (routing), then pages, then components, then rest
   const sorted = fileEntries.sort(([a], [b]) => {
-    const aIsSrc = a.startsWith("src/") ? 0 : 1;
-    const bIsSrc = b.startsWith("src/") ? 0 : 1;
-    return aIsSrc - bIsSrc;
+    const priority = (p: string) => {
+      if (p === "src/App.jsx") return 0;
+      if (p.startsWith("src/pages/")) return 1;
+      if (p.startsWith("src/components/")) return 2;
+      if (p.startsWith("src/")) return 3;
+      return 4;
+    };
+    return priority(a) - priority(b);
   });
+
+  // Extract route information from App.jsx for the AI
+  let routeSummary = "";
+  const appEntry = fileEntries.find(([p]) => p === "src/App.jsx");
+  if (appEntry) {
+    const routeMatches = appEntry[1].matchAll(/path=["']([^"']+)["']/g);
+    const routes = [...routeMatches].map((m) => m[1]);
+    if (routes.length > 0) {
+      routeSummary = `\nCURRENT ROUTES: ${routes.join(", ")}\nYou MUST preserve ALL these routes when modifying App.jsx. Only ADD new routes.\n`;
+    }
+  }
+
+  // Build file listing
+  const fileList = fileEntries.map(([p]) => p).join(", ");
 
   for (const [path, content] of sorted) {
     if (totalChars + content.length > MAX_CONTEXT_CHARS) {
@@ -281,7 +320,13 @@ Generate src/App.jsx and any other src/ files needed. Do NOT generate config fil
   }
 
   let context = `\n\n<project-context>
-The following files already exist in the project. When the user asks for changes, ONLY modify the files that need changes. Output COMPLETE file content for modified files.
+EXISTING FILES: ${fileList}
+${routeSummary}
+RULES:
+- NEVER remove existing routes, pages, or components
+- Only output files you are CREATING or MODIFYING
+- Every import in your code must resolve to a file in this list OR a file you generate
+- When adding a new page, ADD a new Route — do not replace existing ones
 
 ${includedFiles.join("\n\n")}`;
 

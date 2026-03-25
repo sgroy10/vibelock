@@ -95,10 +95,12 @@ export class StreamParser {
         const closeIdx = this.buffer.indexOf("</vibelock-file>");
         if (closeIdx !== -1) {
           this.currentContent += this.buffer.slice(0, closeIdx);
-          // Strip markdown code fences from file content
+          // Clean file content: strip code fences and leading whitespace
           let content = this.currentContent;
           content = content.replace(/^```(?:jsx|tsx|js|ts|javascript|typescript|html|css|json|xml|text)?\s*\n/, "");
           content = content.replace(/\n```\s*$/, "");
+          // Remove leading blank lines (AI often puts newline after opening tag)
+          content = content.replace(/^\n+/, "");
           const op: FileOp = {
             type: "file",
             path: this.currentPath,
