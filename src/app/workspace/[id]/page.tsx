@@ -382,9 +382,16 @@ export default function WorkspacePage() {
           });
           return;
         }
+      } else if (attempt < MAX_RETRIES) {
+        // Server didn't start — treat as error and auto-retry
+        appendTerminal("❌ Dev server failed to start. Retrying...\n");
+        errors.push({
+          success: false, output: "", op: { type: "shell", command: "npm run dev" },
+          error: "Dev server did not start within 45 seconds. npm install likely failed or package.json is invalid.",
+        });
       } else {
-        appendTerminal("⚠️ Dev server taking long. It may still start...\n");
-        setPhase("starting", "Server is still starting...");
+        setPhase("error", "Dev server failed to start");
+        appendTerminal("❌ Dev server failed after all retries.\n");
       }
     }
 

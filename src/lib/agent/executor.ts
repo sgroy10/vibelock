@@ -28,21 +28,69 @@ export interface ExecutionResult {
   op: VibeLockOp;
 }
 
+/** Safely merge AI's package.json with the golden template's package.json */
+async function mergePackageJson(wc: WebContainer, aiContent: string): Promise<string> {
+  try {
+    // Read the current (working) package.json from WebContainer
+    const existing = await wc.fs.readFile("package.json", "utf-8");
+    const existingPkg = JSON.parse(existing);
+
+    // Try to parse AI's package.json
+    let aiPkg;
+    try {
+      // Clean markdown/tags before parsing
+      const cleaned = aiContent
+        .replace(/^```(?:json)?\s*\n/g, "")
+        .replace(/\n```\s*$/g, "")
+        .replace(/<\/?vibelock-[^>]*>/g, "")
+        .trim();
+      aiPkg = JSON.parse(cleaned);
+    } catch {
+      // AI's JSON is corrupted — just extract dependency names and merge
+      const depMatches = aiContent.matchAll(/"([\w@/-]+)"\s*:\s*"([^"]+)"/g);
+      const newDeps: Record<string, string> = {};
+      for (const m of depMatches) {
+        if (!["name", "private", "type", "version"].includes(m[1]) && !m[1].startsWith("@vitejs")) {
+          newDeps[m[1]] = m[2];
+        }
+      }
+      if (Object.keys(newDeps).length > 0) {
+        existingPkg.dependencies = { ...existingPkg.dependencies, ...newDeps };
+      }
+      return JSON.stringify(existingPkg, null, 2);
+    }
+
+    // Merge dependencies from AI into existing
+    if (aiPkg.dependencies) {
+      existingPkg.dependencies = { ...existingPkg.dependencies, ...aiPkg.dependencies };
+    }
+    if (aiPkg.devDependencies) {
+      existingPkg.devDependencies = { ...existingPkg.devDependencies, ...aiPkg.devDependencies };
+    }
+    return JSON.stringify(existingPkg, null, 2);
+  } catch {
+    // If everything fails, return the AI content as-is (last resort)
+    return aiContent;
+  }
+}
+
 /** Write a file to WebContainer, creating directories as needed */
 async function writeFile(wc: WebContainer, op: FileOp): Promise<ExecutionResult> {
   try {
     // Safety: strip leaked vibelock tags, markdown code fences from content
     const cleanPath = op.path.replace(/<\/?vibelock-[^>]*>/g, "").trim();
     let cleanContent = op.content;
-    // Strip markdown code fences the AI wraps around file content
-    // e.g., ```jsx\n...code...\n``` or ```javascript\n...code...\n```
+    // Strip markdown code fences
     cleanContent = cleanContent.replace(/^```(?:jsx|tsx|js|ts|javascript|typescript|html|css|json|xml|text|markdown|md)?\s*\n/g, "");
     cleanContent = cleanContent.replace(/\n```\s*$/g, "");
-    // Strip any vibelock tags that leaked into content
     cleanContent = cleanContent.replace(/<\/?vibelock-[^>]*>/g, "");
-    // Strip stray code fences in the middle (AI sometimes wraps each section)
     cleanContent = cleanContent.replace(/```(?:jsx|tsx|js|ts|javascript|typescript|html|css|json)?\s*\n/g, "");
     cleanContent = cleanContent.replace(/\n```\n/g, "\n");
+
+    // Special handling for package.json — MERGE deps instead of replacing
+    if (cleanPath === "package.json") {
+      cleanContent = await mergePackageJson(wc, cleanContent);
+    }
 
     const parts = cleanPath.split("/");
     if (parts.length > 1) {
