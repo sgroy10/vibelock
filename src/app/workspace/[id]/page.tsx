@@ -39,7 +39,7 @@ import type { WebContainer } from "@webcontainer/api";
 
 type Message = { role: "user" | "assistant"; content: string };
 
-const MAX_RETRIES = 3;
+const MAX_RETRIES = 5;
 
 const PHASE_LABELS: Record<string, { label: string; icon: string }> = {
   idle: { label: "Ready", icon: "🎯" },
@@ -349,9 +349,10 @@ export default function WorkspacePage() {
     const onlySrcFiles = hasFiles && ops.filter((o) => o.type === "file").every((o) => o.type === "file" && o.path.startsWith("src/"));
     const isRetry = attempt > 0;
 
-    // HMR: ONLY use for user-initiated modifications (not retries)
-    // During retries, always restart — the app might be in a broken state
-    const useHMR = devServerRunning && onlySrcFiles && !hasNewDeps && !isRetry;
+    // HMR DISABLED — always run full build check pipeline.
+    // HMR was skipping the pre-flight build check, causing broken code
+    // to go directly to the dev server. Reliability > speed.
+    const useHMR = false;
 
     if (useHMR) {
       appendTerminal("⚡ HMR: Only src/ files changed, skipping restart\n");
