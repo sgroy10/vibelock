@@ -92,6 +92,23 @@ async function writeFile(wc: WebContainer, op: FileOp): Promise<ExecutionResult>
       cleanContent = await mergePackageJson(wc, cleanContent);
     }
 
+    // Deduplicate imports — AI sometimes writes "import React from 'react'" twice
+    if (/\.(jsx|tsx|js|ts)$/.test(cleanPath)) {
+      const lines = cleanContent.split("\n");
+      const seenImports = new Set<string>();
+      const deduped: string[] = [];
+      for (const line of lines) {
+        const importMatch = line.match(/^import\s+.+\s+from\s+['"]([^'"]+)['"]/);
+        if (importMatch) {
+          const key = line.trim();
+          if (seenImports.has(key)) continue; // skip duplicate
+          seenImports.add(key);
+        }
+        deduped.push(line);
+      }
+      cleanContent = deduped.join("\n");
+    }
+
     const parts = cleanPath.split("/");
     if (parts.length > 1) {
       let dir = "";

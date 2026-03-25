@@ -203,9 +203,21 @@ export class StreamParser {
     return flushed;
   }
 
-  /** Get all operations parsed so far */
+  /** Get all operations parsed so far, deduplicated by file path (last write wins) */
   getAllOps(): VibeLockOp[] {
-    return [...this.ops];
+    // Deduplicate file ops — if the AI outputs the same file path twice, keep the last version
+    const fileOps = new Map<string, FileOp>();
+    const shellOps: ShellOp[] = [];
+
+    for (const op of this.ops) {
+      if (op.type === "file") {
+        fileOps.set(op.path, op); // last one wins
+      } else {
+        shellOps.push(op);
+      }
+    }
+
+    return [...fileOps.values(), ...shellOps];
   }
 
   /** Get all plain text (non-operation) content, with any leaked tags stripped */

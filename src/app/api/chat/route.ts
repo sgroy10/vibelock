@@ -106,6 +106,12 @@ When you need a package not in the base template:
 2. Include <vibelock-shell>npm install</vibelock-shell>
 3. Then <vibelock-shell>npm run dev</vibelock-shell>
 
+### IMPORT RULES:
+- NEVER use "import React from 'react'" — React 18 with Vite does NOT need explicit React imports for JSX. Just write JSX directly.
+- ONLY import specific hooks: import { useState, useEffect } from 'react'
+- NEVER duplicate imports — each module should be imported exactly ONCE at the top of the file
+- NEVER generate the same file twice in one response
+
 ### Shell commands:
 - Each command in its own <vibelock-shell> tag
 - NEVER combine: no "npm install && npm run dev"
