@@ -68,16 +68,23 @@ export async function PUT(
   try {
     const { messages, files, constraints, name } = await req.json();
 
-    // Update project name/timestamp
-    if (name) {
+    // Ensure project exists — update or create
+    const existingProject = await prisma.project.findUnique({ where: { id } });
+    if (existingProject) {
       await prisma.project.update({
         where: { id },
-        data: { name, updatedAt: new Date() },
-      }).catch(() => {
-        // Project might not exist yet (anonymous/new) — create it
-        return prisma.project.create({
-          data: { id, name, userId: "anonymous" },
+        data: { name: name || existingProject.name, updatedAt: new Date() },
+      });
+    } else {
+      // For anonymous users, find or create a default user
+      let user = await prisma.user.findFirst({ where: { email: "anonymous@vibelock.in" } });
+      if (!user) {
+        user = await prisma.user.create({
+          data: { email: "anonymous@vibelock.in", name: "Anonymous" },
         });
+      }
+      await prisma.project.create({
+        data: { id, name: name || "Untitled", userId: user.id },
       });
     }
 
