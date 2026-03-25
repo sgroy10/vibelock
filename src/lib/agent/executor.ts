@@ -5,6 +5,7 @@
 
 import type { WebContainer, WebContainerProcess } from "@webcontainer/api";
 import type { FileOp, ShellOp, VibeLockOp } from "./parser";
+import { validateJSX } from "./jsx-validator";
 
 /** Track the running dev server process so we can kill it before restart */
 let devServerProcess: WebContainerProcess | null = null;
@@ -120,6 +121,18 @@ async function writeFile(wc: WebContainer, op: FileOp): Promise<ExecutionResult>
           // directory may already exist
         }
       }
+    }
+
+    // JSX Syntax Validator — catch errors BEFORE writing to disk
+    const validation = validateJSX(cleanPath, cleanContent);
+    if (validation.fixed) {
+      cleanContent = validation.content;
+    }
+    if (!validation.valid) {
+      // Report syntax errors but still write the file (auto-retry will fix)
+      const errMsg = validation.errors.join("; ");
+      await wc.fs.writeFile(cleanPath, cleanContent);
+      return { success: false, output: `JSX issues in ${cleanPath}`, error: `JSX syntax errors in ${cleanPath}: ${errMsg}`, op };
     }
 
     await wc.fs.writeFile(cleanPath, cleanContent);
