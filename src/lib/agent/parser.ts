@@ -95,11 +95,10 @@ export class StreamParser {
         const closeIdx = this.buffer.indexOf("</vibelock-file>");
         if (closeIdx !== -1) {
           this.currentContent += this.buffer.slice(0, closeIdx);
-          // Clean file content: strip code fences and leading whitespace
+          // Clean file content
           let content = this.currentContent;
           content = content.replace(/^```(?:jsx|tsx|js|ts|javascript|typescript|html|css|json|xml|text)?\s*\n/, "");
           content = content.replace(/\n```\s*$/, "");
-          // Remove leading blank lines (AI often puts newline after opening tag)
           content = content.replace(/^\n+/, "");
           const op: FileOp = {
             type: "file",
@@ -111,9 +110,18 @@ export class StreamParser {
           this.buffer = this.buffer.slice(closeIdx + "</vibelock-file>".length);
           this.state = "text";
         } else {
-          // Tag not yet closed, accumulate and wait for more data
-          this.currentContent += this.buffer;
-          this.buffer = "";
+          // CRITICAL FIX: Don't eat partial closing tags!
+          // Check if buffer ends with start of "</vibelock-file>"
+          // The tag could be split: "</vibelo" in this chunk, "ck-file>" in next
+          const partialIdx = this.buffer.lastIndexOf("</");
+          if (partialIdx !== -1 && partialIdx > this.buffer.length - 20) {
+            // Keep the potential partial closing tag in the buffer
+            this.currentContent += this.buffer.slice(0, partialIdx);
+            this.buffer = this.buffer.slice(partialIdx);
+          } else {
+            this.currentContent += this.buffer;
+            this.buffer = "";
+          }
           break;
         }
       } else if (this.state === "shell") {
@@ -129,8 +137,15 @@ export class StreamParser {
           this.buffer = this.buffer.slice(closeIdx + "</vibelock-shell>".length);
           this.state = "text";
         } else {
-          this.currentContent += this.buffer;
-          this.buffer = "";
+          // Same fix for shell tags
+          const partialIdx = this.buffer.lastIndexOf("</");
+          if (partialIdx !== -1 && partialIdx > this.buffer.length - 20) {
+            this.currentContent += this.buffer.slice(0, partialIdx);
+            this.buffer = this.buffer.slice(partialIdx);
+          } else {
+            this.currentContent += this.buffer;
+            this.buffer = "";
+          }
           break;
         }
       }
