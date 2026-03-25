@@ -32,6 +32,7 @@ function cleanDisplay(text: string): string {
   return clean;
 }
 import { executeOps, formatErrorForRetry, killDevServer } from "@/lib/agent/executor";
+import { validateImports, formatMissingImports } from "@/lib/agent/validator";
 import { startConsoleCapture, getConsoleErrors, clearConsoleLogs } from "@/lib/console-capture";
 import { useWorkspaceStore } from "@/stores/workspace";
 import type { WebContainer } from "@webcontainer/api";
@@ -291,6 +292,35 @@ export default function WorkspacePage() {
       (p, detail) => setPhase(p as typeof phase, detail),
       secrets.getAllEnvVars()
     );
+
+    // POST-GENERATION IMPORT VALIDATION
+    // Check that all imports resolve to real files BEFORE starting dev server
+    if (errors.length === 0 && attempt < MAX_RETRIES) {
+      appendTerminal("🔍 Validating imports...\n");
+      const missingImports = await validateImports(wc);
+      if (missingImports.length > 0) {
+        const missingFiles = missingImports.map((m) => m.resolvedPath + ".jsx").join(", ");
+        appendTerminal(`⚠️ Missing files: ${missingFiles}. Generating...\n`);
+        incrementRetry();
+        const fixMsg = formatMissingImports(missingImports);
+        const fixMessages: Message[] = [
+          ...chatMessages,
+          { role: "assistant", content: "(files generated but some imports are missing)" },
+          { role: "user", content: fixMsg },
+        ];
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: `📝 Creating missing files: ${missingFiles}` },
+        ]);
+        setPhase("streaming");
+        const { ops: fixOps } = await streamChat(fixMessages);
+        if (fixOps.length > 0) {
+          // Only write the missing files — don't restart dev server yet
+          await executeOps(wc, fixOps.filter(o => o.type === "file"), (data) => appendTerminal(data));
+          appendTerminal("✅ Missing files created\n");
+        }
+      }
+    }
 
     if (errors.length === 0 && useHMR) {
       appendTerminal("⏳ Waiting for HMR update...\n");

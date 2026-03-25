@@ -361,7 +361,7 @@ export async function POST(req: NextRequest) {
         model: MODEL,
         messages: openRouterMessages,
         stream: true,
-        max_tokens: 32000,
+        max_tokens: 64000,
       }),
     };
 
