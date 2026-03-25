@@ -211,6 +211,39 @@ async function runShell(
   }
 }
 
+/**
+ * PRE-FLIGHT BUILD CHECK — run vite build to catch errors BEFORE starting dev server.
+ * Returns null if build passes, or error string if it fails.
+ */
+export async function preflightBuildCheck(
+  wc: WebContainer,
+  onOutput?: (data: string) => void
+): Promise<string | null> {
+  try {
+    const proc = await wc.spawn("npx", ["vite", "build", "--mode", "development"]);
+    let output = "";
+    proc.output.pipeTo(new WritableStream({
+      write(data) {
+        output += data;
+        onOutput?.(data);
+      },
+    })).catch(() => {});
+
+    const exitCode = await proc.exit;
+    if (exitCode !== 0) {
+      // Extract the useful error from build output
+      const errorLines = output.split("\n").filter((l) =>
+        l.includes("error") || l.includes("Error") || l.includes("failed") ||
+        l.includes("Cannot find") || l.includes("Expected") || l.includes("Unexpected")
+      );
+      return errorLines.slice(0, 5).join("\n") || output.slice(-500);
+    }
+    return null; // build passed
+  } catch (err) {
+    return `Build check error: ${err instanceof Error ? err.message : String(err)}`;
+  }
+}
+
 /** Write a .env file to WebContainer with user's API keys */
 export async function injectEnvVars(
   wc: WebContainer,

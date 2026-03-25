@@ -4,10 +4,10 @@ const OPENROUTER_API_KEY =
   process.env.OPEN_ROUTER_API_KEY || process.env.OPENROUTER_API_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// Model priority: env override > Gemini 2.5 Pro (stable, excellent code, 1M context)
-const MODEL = process.env.VIBELOCK_MODEL || "google/gemini-2.5-pro";
-// Direct Gemini model for fallback (Google AI Studio API)
-const GEMINI_DIRECT_MODEL = "gemini-2.5-flash";
+// Primary: Direct Gemini API (fast, stable, no middleman)
+// Fallback: OpenRouter (if Gemini key not set)
+const GEMINI_DIRECT_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const OPENROUTER_MODEL = process.env.VIBELOCK_MODEL || "google/gemini-2.5-pro";
 
 // ─── SYSTEM PROMPT ─────────────────────────────────────────────────────────────
 // This is the brain of VibeLock. Every instruction here directly affects output quality.
@@ -421,7 +421,7 @@ export async function POST(req: NextRequest) {
         "X-Title": "VibeLock",
       },
       body: JSON.stringify({
-        model: MODEL,
+        model: OPENROUTER_MODEL,
         messages: openRouterMessages,
         stream: true,
         max_tokens: 64000,
@@ -472,19 +472,23 @@ export async function POST(req: NextRequest) {
     return res;
   }
 
-  let response = await callOpenRouter();
-
-  // If OpenRouter fails, try Gemini direct
+  // Primary: Gemini direct API (faster, no middleman)
+  // Fallback: OpenRouter (if Gemini key not set or fails)
+  let response: Response;
   let useGeminiDirect = false;
-  if (!response.ok) {
-    const err = await response.text();
-    console.error("OpenRouter error:", response.status, err);
-    const geminiResponse = await callGeminiDirect();
-    if (geminiResponse && geminiResponse.ok) {
-      response = geminiResponse;
-      useGeminiDirect = true;
-      console.log("[VibeLock] Gemini direct fallback succeeded");
-    } else {
+
+  const geminiResponse = await callGeminiDirect();
+  if (geminiResponse && geminiResponse.ok) {
+    response = geminiResponse;
+    useGeminiDirect = true;
+    console.log("[VibeLock] Using Gemini direct API");
+  } else {
+    // Fallback to OpenRouter
+    console.log("[VibeLock] Gemini direct failed, falling back to OpenRouter");
+    response = await callOpenRouter();
+    if (!response.ok) {
+      const err = await response.text();
+      console.error("Both APIs failed. OpenRouter:", response.status, err);
       return new Response(`LLM error: ${response.status}`, { status: 502 });
     }
   }

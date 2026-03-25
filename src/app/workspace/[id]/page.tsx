@@ -31,7 +31,7 @@ function cleanDisplay(text: string): string {
   clean = clean.replace(/\n{3,}/g, "\n\n").trim();
   return clean;
 }
-import { executeOps, formatErrorForRetry, killDevServer } from "@/lib/agent/executor";
+import { executeOps, formatErrorForRetry, killDevServer, preflightBuildCheck } from "@/lib/agent/executor";
 import { validateImports, formatMissingImports } from "@/lib/agent/validator";
 import { startConsoleCapture, getConsoleErrors, clearConsoleLogs } from "@/lib/console-capture";
 import { useWorkspaceStore } from "@/stores/workspace";
@@ -404,6 +404,34 @@ export default function WorkspacePage() {
           appendTerminal("✅ Missing files created\n");
         }
       }
+    }
+
+    // PRE-FLIGHT BUILD CHECK — verify code compiles before starting dev server
+    if (errors.length === 0 && !useHMR && attempt < MAX_RETRIES) {
+      appendTerminal("🔨 Pre-flight build check...\n");
+      setPhase("writing", "Verifying build...");
+      const buildError = await preflightBuildCheck(wc, (data) => appendTerminal(data));
+      if (buildError) {
+        appendTerminal(`❌ Build failed. Auto-fixing...\n`);
+        incrementRetry();
+        await killDevServer();
+        setDevServerRunning(false);
+        const fixMessages: Message[] = [
+          ...chatMessages,
+          { role: "assistant", content: "(code generated but build failed)" },
+          { role: "user", content: `Build error:\n${buildError}\n\nFix the syntax/import errors. Read <project-context> and regenerate ONLY the broken files.` },
+        ];
+        setMessages((prev) => [...prev, { role: "assistant", content: "🔧 Fixing build error..." }]);
+        setPhase("streaming");
+        const { ops: fixOps } = await streamChat(fixMessages);
+        if (fixOps.length > 0) {
+          await executeWithRetry(wc, fixOps, fixMessages, attempt + 1);
+        } else {
+          setPhase("error", "Could not fix build error");
+        }
+        return; // don't continue to dev server
+      }
+      appendTerminal("✅ Build check passed!\n");
     }
 
     if (errors.length === 0 && useHMR) {
