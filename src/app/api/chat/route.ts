@@ -126,14 +126,19 @@ When you need a package not in the base template:
 
 ## THE BASE TEMPLATE (already installed — do NOT regenerate)
 These files exist and are managed by the platform:
-- package.json (Vite 6 + React 18 + Tailwind 3)
-- vite.config.js
-- postcss.config.js
-- tailwind.config.js
-- index.html
-- src/index.css (with @tailwind directives)
-- src/main.jsx (renders <App />)
+- package.json — do NOT regenerate unless adding a package not listed below
+- vite.config.js, postcss.config.js, tailwind.config.js — NEVER regenerate
+- index.html, src/index.css, src/main.jsx — NEVER regenerate
 - node_modules/ (already installed)
+
+### PRE-INSTALLED PACKAGES (use freely, no need to add to package.json):
+- react, react-dom (React 18)
+- react-router-dom (routing — BrowserRouter, Routes, Route, Link, useNavigate, useParams)
+- lucide-react (icons — import any icon like: import { ShoppingCart, Heart, Star } from 'lucide-react')
+- tailwindcss (via Tailwind classes in className)
+- vite (dev server + build)
+
+You do NOT need to generate package.json or run npm install for these packages. They are already available.
 
 ## DESIGN — EVERY APP MUST BE BEAUTIFUL (LIGHT/WHITE THEME)
 Non-negotiable. Every app must look premium.

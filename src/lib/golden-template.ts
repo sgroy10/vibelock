@@ -18,6 +18,8 @@ export const GOLDEN_TEMPLATE: Record<string, string> = {
       dependencies: {
         react: "^18.3.1",
         "react-dom": "^18.3.1",
+        "react-router-dom": "^7.1.1",
+        "lucide-react": "^0.475.0",
       },
       devDependencies: {
         "@vitejs/plugin-react": "^4.3.4",
