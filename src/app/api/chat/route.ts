@@ -472,23 +472,21 @@ export async function POST(req: NextRequest) {
     return res;
   }
 
-  // Primary: Gemini direct API (faster, no middleman)
-  // Fallback: OpenRouter (if Gemini key not set or fails)
+  // Primary: OpenRouter (proven, tested, works with our parser)
+  // Fallback: Gemini direct (if OpenRouter fails)
   let response: Response;
   let useGeminiDirect = false;
 
-  const geminiResponse = await callGeminiDirect();
-  if (geminiResponse && geminiResponse.ok) {
-    response = geminiResponse;
-    useGeminiDirect = true;
-    console.log("[VibeLock] Using Gemini direct API");
-  } else {
-    // Fallback to OpenRouter
-    console.log("[VibeLock] Gemini direct failed, falling back to OpenRouter");
-    response = await callOpenRouter();
-    if (!response.ok) {
+  response = await callOpenRouter();
+  if (!response.ok) {
+    console.warn("[VibeLock] OpenRouter failed, trying Gemini direct");
+    const geminiResponse = await callGeminiDirect();
+    if (geminiResponse && geminiResponse.ok) {
+      response = geminiResponse;
+      useGeminiDirect = true;
+    } else {
       const err = await response.text();
-      console.error("Both APIs failed. OpenRouter:", response.status, err);
+      console.error("Both APIs failed:", err);
       return new Response(`LLM error: ${response.status}`, { status: 502 });
     }
   }
