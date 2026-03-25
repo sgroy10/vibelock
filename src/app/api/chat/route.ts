@@ -106,6 +106,13 @@ When you need a package not in the base template:
 2. Include <vibelock-shell>npm install</vibelock-shell>
 3. Then <vibelock-shell>npm run dev</vibelock-shell>
 
+### JSX RULES (syntax errors break the app):
+- Every opening tag MUST have a matching closing tag: <div>...</div>, NOT <div>...</span>
+- Self-close tags with no children: <img />, <br />, <input />, <hr />
+- All JSX must return a SINGLE root element — wrap in <> ... </> if needed
+- Template literals in JSX attributes use curly braces: className={\`text-\${size}\`}
+- className, NOT class. htmlFor, NOT for. onClick, NOT onclick.
+
 ### IMPORT RULES:
 - NEVER use "import React from 'react'" — React 18 with Vite does NOT need explicit React imports for JSX. Just write JSX directly.
 - ONLY import specific hooks: import { useState, useEffect } from 'react'

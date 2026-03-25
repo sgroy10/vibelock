@@ -352,11 +352,17 @@ export default function WorkspacePage() {
       }
 
       if (serverStarted) {
-        // Server started — but wait 3s and check for RUNTIME errors
-        appendTerminal("🔍 Checking for runtime errors...\n");
+        // Server started — wait for app to fully load and check for errors
+        // Two-pass check: 3s + 4s to catch both fast and slow errors
+        appendTerminal("🔍 Checking for errors...\n");
         clearConsoleLogs();
         await new Promise((resolve) => setTimeout(resolve, 3000));
-        const runtimeErrors = getConsoleErrors();
+        let runtimeErrors = getConsoleErrors();
+        if (!runtimeErrors) {
+          // Second check — some errors appear after initial render
+          await new Promise((resolve) => setTimeout(resolve, 4000));
+          runtimeErrors = getConsoleErrors();
+        }
 
         if (runtimeErrors && attempt < MAX_RETRIES) {
           // App built but crashes at runtime — auto-fix!
