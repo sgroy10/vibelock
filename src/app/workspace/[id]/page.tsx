@@ -92,35 +92,119 @@ export default function WorkspacePage() {
   const isBusy = phase !== "idle" && phase !== "ready" && phase !== "error";
 
   const [templateInstalled, setTemplateInstalled] = useState(false);
+  const [projectLoaded, setProjectLoaded] = useState(false);
+  const [savedFiles, setSavedFiles] = useState<Record<string, string> | null>(null);
+
+  // ─── PERSISTENCE: Save project state to DB ───
+  const saveProject = useCallback(async () => {
+    const wc = wcRef.current;
+    if (!wc) return;
+    try {
+      const files = await readProjectFiles(wc);
+      const currentMessages = useWorkspaceStore.getState().phase === "ready"
+        ? messages : messages; // always save current messages
+      await fetch(`/api/projects/${projectId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: currentMessages,
+          files,
+          constraints: constraints.map((c) => ({ text: c.text, source: c.source })),
+          name: initialPrompt?.slice(0, 60) || "Untitled",
+        }),
+      });
+    } catch (err) {
+      console.warn("Failed to save project:", err);
+    }
+  }, [messages, constraints, projectId, initialPrompt]);
+
+  // ─── PERSISTENCE: Load project state from DB ───
+  const loadProject = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data.error) return null;
+      return data;
+    } catch {
+      return null;
+    }
+  }, [projectId]);
+
+  // ─── PERSISTENCE: Restore files to WebContainer ───
+  const restoreFiles = useCallback(async (wc: WebContainer, files: Record<string, string>) => {
+    for (const [path, content] of Object.entries(files)) {
+      const parts = path.split("/");
+      if (parts.length > 1) {
+        const dir = parts.slice(0, -1).join("/");
+        try { await wc.fs.mkdir(dir, { recursive: true }); } catch { /* exists */ }
+      }
+      await wc.fs.writeFile(path, content);
+    }
+  }, []);
 
   // Start listening for console errors from preview iframe
   useEffect(() => {
     startConsoleCapture();
-    return () => {}; // cleanup handled by startConsoleCapture internally
+    return () => {};
   }, []);
 
+  // Boot WebContainer + load saved project
   useEffect(() => {
     setPhase("installing", "Setting up sandbox...");
-    getWebContainer().then((wc) => {
+
+    Promise.all([getWebContainer(), loadProject()]).then(async ([wc, saved]) => {
       wcRef.current = wc;
-      setWcReady(true);
-      setTemplateInstalled(isTemplateReady());
-      setPhase("idle");
 
       wc.on("server-ready", (_port: number, url: string) => {
         setPreviewUrl(url);
         setDevServerRunning(true);
-        // Don't set "ready" here — let executeWithRetry check for runtime
-        // errors first. Only set ready if no errors found.
       });
+
+      // Restore saved project if it exists
+      if (saved && saved.messages && saved.messages.length > 0) {
+        setMessages(saved.messages);
+        if (saved.constraints) {
+          setConstraints(saved.constraints.map((c: { id?: string; text: string; source: string; createdAt?: string }) => ({
+            id: c.id || `lock_${Date.now()}`,
+            text: c.text,
+            source: c.source as "auto" | "user",
+            createdAt: c.createdAt ? new Date(c.createdAt).getTime() : Date.now(),
+          })));
+        }
+        // Restore files to WebContainer
+        if (saved.files && Object.keys(saved.files).length > 0) {
+          setSavedFiles(saved.files);
+          setPhase("installing", "Restoring your project...");
+          appendTerminal("📂 Restoring saved files...\n");
+          await restoreFiles(wc, saved.files);
+          appendTerminal(`✅ Restored ${Object.keys(saved.files).length} files\n`);
+          // Start dev server with restored files
+          appendTerminal("🚀 Starting dev server...\n");
+          setPhase("starting", "Starting your app...");
+          const proc = await wc.spawn("npm", ["run", "dev"]);
+          proc.output.pipeTo(new WritableStream({ write(data) { appendTerminal(data); } })).catch(() => {});
+          setProjectLoaded(true);
+          setWcReady(true);
+          setTemplateInstalled(true);
+          return;
+        }
+      }
+
+      // No saved project — fresh start
+      setWcReady(true);
+      setTemplateInstalled(isTemplateReady());
+      setPhase("idle");
+      setProjectLoaded(true);
     });
   }, [setPhase, setPreviewUrl]);
 
+  // Auto-send initial prompt (only for new projects, not restored ones)
   useEffect(() => {
-    if (initialPrompt && messages.length === 0 && wcReady) {
+    if (initialPrompt && messages.length === 0 && wcReady && projectLoaded) {
       sendMessage(initialPrompt);
     }
-  }, [initialPrompt, wcReady]);
+  }, [initialPrompt, wcReady, projectLoaded]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -334,6 +418,7 @@ export default function WorkspacePage() {
         appendTerminal("✅ Files updated via HMR\n");
         setPhase("ready");
         setFileRefresh((n) => n + 1);
+        saveProject(); // Auto-save after successful HMR update
         return;
       }
     }
@@ -386,6 +471,7 @@ export default function WorkspacePage() {
             }
             return updated;
           });
+          saveProject(); // Auto-save after successful build
           return;
         }
       } else if (attempt < MAX_RETRIES) {

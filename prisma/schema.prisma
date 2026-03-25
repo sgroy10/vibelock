@@ -150,6 +150,19 @@ model AppFile {
   @@index([projectId])
 }
 
+// ─── Project Files (generated code persistence) ───
+model ProjectFile {
+  id        String   @id @default(cuid())
+  projectId String
+  path      String   // e.g., "src/App.jsx"
+  content   String   // file content
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, path])
+  @@index([projectId])
+}
+
 // ─── SpecLock Constraints (baked-in) ───
 model ProjectConstraint {
   id        String   @id @default(cuid())
