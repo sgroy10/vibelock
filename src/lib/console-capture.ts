@@ -54,6 +54,8 @@ const NOISE_PATTERNS = [
   /WebSocket handshake/i,
   /\[vite\] server connection lost/i,
   /\[vite\] connecting\.\.\./i,
+  /\[vite\] Failed to reload/i,
+  /\[vite\] page reload/i,
   /hmr/i,
   /hot update/i,
   /Empty response/i,

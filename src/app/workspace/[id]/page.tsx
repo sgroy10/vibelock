@@ -487,6 +487,11 @@ export default function WorkspacePage() {
           appendTerminal("✅ App is running!\n");
           setPhase("ready");
           setFileRefresh((n) => n + 1);
+          // Force reload the iframe to avoid HMR stale state
+          if (iframeRef.current && previewUrl) {
+            iframeRef.current.src = previewUrl + "?r=" + Date.now();
+          }
+          clearConsoleLogs(); // Clear HMR noise from console
           setMessages((prev) => {
             const updated = [...prev];
             if (updated.length > 0 && updated[updated.length - 1].role === "assistant") {
@@ -500,7 +505,7 @@ export default function WorkspacePage() {
             }
             return updated;
           });
-          saveProject(); // Auto-save after successful build
+          saveProject();
           return;
         }
       } else if (attempt < MAX_RETRIES) {
