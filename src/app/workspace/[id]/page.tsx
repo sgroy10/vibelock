@@ -502,7 +502,7 @@ export default function WorkspacePage() {
           setFileRefresh((n) => n + 1);
           // Force reload the iframe to avoid HMR stale state
           if (iframeRef.current && previewUrl) {
-            iframeRef.current.src = previewUrl + "?r=" + Date.now();
+            iframeRef.current.src = previewUrl;
           }
           clearConsoleLogs(); // Clear HMR noise from console
 
@@ -897,7 +897,7 @@ export default function WorkspacePage() {
                 <button
                   onClick={() => {
                     if (iframeRef.current) {
-                      iframeRef.current.src = previewUrl + (previewUrl.includes("?") ? "&" : "?") + "r=" + Date.now();
+                      iframeRef.current.contentWindow?.location.reload();
                     }
                   }}
                   className="absolute bottom-3 right-3 z-10 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-white border border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
