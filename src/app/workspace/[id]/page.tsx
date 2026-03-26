@@ -404,20 +404,23 @@ export default function WorkspacePage() {
       }
     }
 
-    const fileCount = ops.filter((o) => o.type === "file").length;
+    // STEP 1: Write files ONLY (no shell commands yet)
+    const fileOps = ops.filter((o) => o.type === "file");
+    const shellOps = ops.filter((o) => o.type === "shell");
+
+    const fileCount = fileOps.length;
     setPhase("writing", `Creating ${fileCount} files...`);
     appendTerminal(`📝 Writing ${fileCount} files...\n`);
 
-    const { errors } = await executeOps(
-      wc, ops,
+    const { errors: fileErrors } = await executeOps(
+      wc, fileOps,
       (data) => appendTerminal(data),
       (p, detail) => setPhase(p as typeof phase, detail),
       secrets.getAllEnvVars()
     );
 
-    // POST-GENERATION IMPORT VALIDATION
-    // Check that all imports resolve to real files BEFORE starting dev server
-    if (errors.length === 0 && attempt < MAX_RETRIES) {
+    // STEP 2: VALIDATE IMPORTS before starting dev server
+    if (fileErrors.length === 0 && attempt < MAX_RETRIES) {
       appendTerminal("🔍 Validating imports...\n");
       const missingImports = await validateImports(wc);
       if (missingImports.length > 0) {
@@ -437,18 +440,28 @@ export default function WorkspacePage() {
         setPhase("streaming");
         const { ops: fixOps } = await streamChat(fixMessages);
         if (fixOps.length > 0) {
-          // Write the missing files AND restart the full pipeline
-          // This re-validates, re-checks, and starts the dev server properly
-          await executeWithRetry(wc, fixOps, fixMessages, attempt + 1);
+          // Add shell commands back and restart full pipeline
+          const allFixOps = [...fixOps, ...shellOps];
+          await executeWithRetry(wc, allFixOps, fixMessages, attempt + 1);
         }
-        return; // Don't continue — executeWithRetry handles everything
+        return;
       }
     }
+
+    // STEP 3: Run shell commands (npm install, npm run dev)
+    const { errors } = await executeOps(
+      wc, shellOps,
+      (data) => appendTerminal(data),
+      (p, detail) => setPhase(p as typeof phase, detail),
+    );
+
+    // Merge file errors + shell errors
+    const allErrors = [...fileErrors, ...errors];
 
     // Skip pre-flight build check — it adds 30s per attempt.
     // Vite dev server catches errors faster via runtime error detection.
 
-    if (errors.length === 0 && useHMR) {
+    if (allErrors.length === 0 && useHMR) {
       appendTerminal("⏳ Waiting for HMR update...\n");
       await new Promise((resolve) => setTimeout(resolve, 2000));
       // Check for runtime errors after HMR
@@ -465,7 +478,7 @@ export default function WorkspacePage() {
       }
     }
 
-    if (errors.length === 0) {
+    if (allErrors.length === 0) {
       // Wait for dev server — poll for up to 45 seconds
       appendTerminal("⏳ Waiting for dev server...\n");
       const getStore = useWorkspaceStore.getState;
@@ -546,11 +559,11 @@ export default function WorkspacePage() {
       }
     }
 
-    if (errors.length > 0 && attempt < MAX_RETRIES) {
+    if (allErrors.length > 0 && attempt < MAX_RETRIES) {
       incrementRetry();
       // Debug-first: collect console errors from the preview iframe
       const consoleErrors = getConsoleErrors();
-      const errorMsg = formatErrorForRetry(errors, consoleErrors);
+      const errorMsg = formatErrorForRetry(allErrors, consoleErrors);
       clearConsoleLogs();
       appendTerminal(`\n⚠️ Error (attempt ${attempt + 1}/${MAX_RETRIES}). Auto-fixing...\n`);
 
@@ -574,7 +587,7 @@ export default function WorkspacePage() {
       } else {
         setPhase("error", "AI could not fix the error");
       }
-    } else if (errors.length > 0) {
+    } else if (allErrors.length > 0) {
       setPhase("error", "Max retries reached");
     }
   };
