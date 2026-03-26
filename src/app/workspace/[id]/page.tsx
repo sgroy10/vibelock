@@ -437,10 +437,11 @@ export default function WorkspacePage() {
         setPhase("streaming");
         const { ops: fixOps } = await streamChat(fixMessages);
         if (fixOps.length > 0) {
-          // Only write the missing files — don't restart dev server yet
-          await executeOps(wc, fixOps.filter(o => o.type === "file"), (data) => appendTerminal(data));
-          appendTerminal("✅ Missing files created\n");
+          // Write the missing files AND restart the full pipeline
+          // This re-validates, re-checks, and starts the dev server properly
+          await executeWithRetry(wc, fixOps, fixMessages, attempt + 1);
         }
+        return; // Don't continue — executeWithRetry handles everything
       }
     }
 
