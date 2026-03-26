@@ -56,28 +56,25 @@ const SCRIPT_RANGES: [string, RegExp][] = [
  * Common Romanized Hindi/Hinglish words.
  * If 2+ of these appear in Latin-script text, it's Hinglish.
  */
+// ONLY words that are UNAMBIGUOUSLY Hindi — no English false positives
+// Removed: "app", "do", "the", "par", "se", "ko", "ka", "ki", "ya" (all valid English)
 const HINGLISH_WORDS = new Set([
-  // Verbs
+  // Verbs — clearly Hindi
   "banao", "karo", "dikhao", "batao", "bhejo", "likho", "padho", "kholna",
-  "hatao", "lagao", "jodo", "todo", "badlo", "rakho", "chalo", "dekho",
+  "hatao", "lagao", "jodo", "badlo", "rakho", "chalo", "dekho",
   "samjhao", "sikhao", "dalo", "nikalo", "bechna", "khareedna",
-  // Pronouns / common words
+  // Pronouns — clearly Hindi
   "mujhe", "mera", "meri", "mere", "humko", "hamara", "tumhara", "uska",
-  "iska", "sabka", "kisi", "kuch", "sab",
-  // Postpositions / connectors
-  "chahiye", "chahte", "wala", "wali", "wale", "ke", "liye", "mein",
-  "par", "se", "ko", "ka", "ki", "hai", "hain", "tha", "the",
-  // Nouns
-  "app", "dukaan", "ghar", "kaam", "paisa", "cheez", "jagah", "tarika",
-  "samaan", "saman", "namaste",
+  "iska", "sabka", "kisi", "kuch",
+  // Postpositions — only unambiguous ones
+  "chahiye", "chahte", "wala", "wali", "wale", "liye", "mein",
+  "hai", "hain", "tha",
+  // Nouns — clearly Hindi
+  "dukaan", "ghar", "kaam", "paisa", "cheez", "jagah", "tarika", "namaste",
   // Adjectives
   "accha", "bura", "bada", "chhota", "naya", "purana", "sundar", "asaan",
-  // Common phrases
-  "ek", "do", "teen", "aur", "ya", "lekin", "abhi", "pehle", "baad",
-  "yahan", "wahan", "kaise", "kyun", "kya", "kab", "kitna", "kaun",
-  // Gujarati Romanized (bonus)
-  "banavo", "karo", "batavo", "moklyo", "mari", "maru", "tamaru",
-  "joiye", "karvu", "apo", "nakhi", "maate", "sathe",
+  // Phrases — only unambiguous
+  "lekin", "abhi", "pehle", "baad", "yahan", "wahan", "kaise", "kyun", "kya", "kitna", "kaun",
 ]);
 
 /**
@@ -90,9 +87,9 @@ function isHinglish(text: string): boolean {
   for (const word of words) {
     // Strip punctuation
     const clean = word.replace(/[^a-z]/g, "");
-    if (HINGLISH_WORDS.has(clean)) {
+    if (clean.length >= 3 && HINGLISH_WORDS.has(clean)) {
       count++;
-      if (count >= 2) return true;
+      if (count >= 3) return true; // Need 3+ Hindi words to be confident
     }
   }
   return false;

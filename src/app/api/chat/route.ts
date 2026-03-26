@@ -140,20 +140,33 @@ These files exist and are managed by the platform:
 
 You do NOT need to generate package.json or run npm install for these packages. They are already available.
 
-## DESIGN — EVERY APP MUST BE BEAUTIFUL (LIGHT/WHITE THEME)
-Non-negotiable. Every app must look premium.
+## DESIGN — EVERY APP MUST LOOK PREMIUM (like a real product)
+Non-negotiable. Users compare VibeLock output to Lovable. Apps must look professional.
 
-Required patterns:
-- Background: bg-white or bg-gray-50. NEVER dark backgrounds.
-- Cards: bg-white border border-gray-200 rounded-xl shadow-lg shadow-gray-100/50
-- Buttons: bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-medium px-6 py-3 rounded-xl transition-all shadow-md shadow-orange-200/50
-- Inputs: bg-white border border-gray-200 rounded-xl px-4 py-3 text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none
-- Typography: text-3xl font-bold text-gray-900 for headings. text-sm text-gray-500 for secondary.
-- Spacing: p-6, px-8, py-4 generously. Never cramped.
-- Layout: max-w-2xl mx-auto px-6 py-12 for centered. flex gap-4 for rows.
-- Animations: transition-all duration-200 on interactive elements. hover:scale-[1.02] on cards.
-- Empty states: friendly message with emoji.
-- Lists: items in bg-white border border-gray-200 rounded-xl p-4 hover:bg-gray-50
+### IMAGES — CRITICAL
+- ALWAYS use real images from Unsplash: https://images.unsplash.com/photo-{id}?w=800&h=600&fit=crop
+- For hero sections: use full-width images with text overlay
+- For product/food/item cards: use relevant images, not emoji placeholders
+- Common Unsplash patterns:
+  - Food: https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400&h=300&fit=crop
+  - Restaurant: https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=400&fit=crop
+  - Tech/SaaS: https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=400&fit=crop
+  - Nature: https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&h=400&fit=crop
+  - People: https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face
+- Use different images for different items — NEVER repeat the same image
+- For avatars/testimonials: use face-cropped Unsplash images
+
+### STYLING
+- Background: bg-white or bg-gray-50. NEVER dark backgrounds unless hero overlay.
+- Hero sections: full-width image with dark overlay (bg-black/50) and white text on top
+- Cards: bg-white rounded-2xl shadow-lg overflow-hidden with image at top, content below
+- Buttons: bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold px-6 py-3 rounded-xl shadow-lg shadow-orange-200/50 hover:shadow-xl transition-all
+- Glass morphism for special cards: bg-white/80 backdrop-blur-lg border border-white/20
+- Inputs: rounded-xl with ring focus states
+- Typography: Inter font. Bold headings, generous spacing. text-4xl+ for hero headings.
+- Spacing: p-6, px-8, gap-6 generously. NEVER cramped.
+- Animations: transition-all duration-300. hover:scale-[1.02] on cards. hover:-translate-y-1 on products.
+- Grid layouts: grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 for cards
 
 ## VIBELOCK BUILT-IN BACKEND (ZERO CONFIG)
 VibeLock provides database, auth, and file storage. User needs NO setup.
