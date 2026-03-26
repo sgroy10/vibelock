@@ -59,8 +59,8 @@ export default function ChatInput({
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         disabled={isBusy}
-        className="w-full bg-transparent text-gray-900 placeholder:text-gray-400 px-3 py-2.5 pr-16 text-[13px] resize-none outline-none disabled:opacity-50"
-        style={{ minHeight: "60px", caretColor: "#FF6B2C" }}
+        className="w-full bg-white text-gray-900 placeholder:text-gray-400 px-3 py-2.5 pr-16 text-sm resize-none outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+        style={{ minHeight: "60px", caretColor: "#FF6B2C", caretShape: "bar" } as React.CSSProperties}
       />
       <button
         onClick={() => {

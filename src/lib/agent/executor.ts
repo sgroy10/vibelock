@@ -366,7 +366,7 @@ export function formatErrorForRetry(errors: ExecutionResult[], consoleErrors?: s
     msg += `\n\nBrowser console errors:\n${consoleErrors}`;
   }
 
-  msg += `\n\nREMEMBER: Read <project-context> to see all current files. Only regenerate files that need fixing. Use <vibelock-file> and <vibelock-shell> tags.`;
+  msg += `\n\nIMPORTANT: Respond in ENGLISH only. Read <project-context> to see all current files. Only regenerate files that need fixing. Use <vibelock-file> and <vibelock-shell> tags.`;
 
   return msg;
 }

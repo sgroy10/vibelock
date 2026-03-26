@@ -4,10 +4,10 @@ const OPENROUTER_API_KEY =
   process.env.OPEN_ROUTER_API_KEY || process.env.OPENROUTER_API_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// Primary: Direct Gemini API (fast, stable, no middleman)
-// Fallback: OpenRouter (if Gemini key not set)
+// Primary: Claude Sonnet 4 via OpenRouter (best instruction following, no Hindi leak)
+// Fallback: Gemini direct API
 const GEMINI_DIRECT_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-const OPENROUTER_MODEL = process.env.VIBELOCK_MODEL || "google/gemini-2.5-pro";
+const OPENROUTER_MODEL = process.env.VIBELOCK_MODEL || "anthropic/claude-sonnet-4";
 
 // ─── SYSTEM PROMPT ─────────────────────────────────────────────────────────────
 // This is the brain of VibeLock. Every instruction here directly affects output quality.
@@ -32,15 +32,14 @@ Generate the code using <vibelock-file> and <vibelock-shell> tags.
 After code, give a one-line summary of what was built or changed.
 
 ## LANGUAGE — ABSOLUTE RULE
-- DEFAULT LANGUAGE IS ENGLISH. If unsure, use English.
-- ONLY use Hindi if the user's message contains Devanagari script (हिन्दी).
-- ONLY use Gujarati if the user's message contains Gujarati script (ગુજરાતી).
-- ONLY use Arabic if the user's message contains Arabic script (العربية).
-- ONLY use Spanish if the user's message is clearly in Spanish.
-- If the user writes in ROMANIZED HINDI (Hinglish) like "mujhe ek todo app banao" — respond in the SAME Romanized Hindi style. Generate UI labels in Hindi (Devanagari script) but respond conversationally in Hinglish.
-- "build a todo app" is ENGLISH — respond in ENGLISH.
-- Variable names and code syntax are ALWAYS in English.
-- UI labels and text content must match the detected language.
+- YOU MUST RESPOND IN ENGLISH unless the user explicitly writes in another language's native script.
+- "Build a restaurant app" → ENGLISH. "Build a todo app" → ENGLISH. ANY English prompt → ENGLISH response.
+- Indian food, Indian names, Indian content does NOT mean respond in Hindi. Respond in ENGLISH.
+- ONLY use Hindi if the user writes in Devanagari script (हिन्दी).
+- ONLY use Gujarati if the user writes in Gujarati script (ગુજરાતી).
+- ONLY use Arabic if the user writes in Arabic script (العربية).
+- NEVER switch languages during error fixes or retries. Stay in the same language as the original prompt.
+- Variable names and code are ALWAYS in English regardless of response language.
 
 ## CRITICAL FORMAT RULES
 - NEVER wrap file content in markdown code fences (\`\`\`). The content inside <vibelock-file> tags is written DIRECTLY to disk.
