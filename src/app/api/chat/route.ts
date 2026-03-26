@@ -109,8 +109,11 @@ When you need a package not in the base template:
 - Every opening tag MUST have a matching closing tag: <div>...</div>, NOT <div>...</span>
 - Self-close tags with no children: <img />, <br />, <input />, <hr />
 - All JSX must return a SINGLE root element — wrap in <> ... </> if needed
-- Template literals in JSX attributes use curly braces: className={\`text-\${size}\`}
 - className, NOT class. htmlFor, NOT for. onClick, NOT onclick.
+- APOSTROPHES IN TEXT: Use {"'"} or &apos; or backtick strings. NEVER use ' directly in JSX text.
+  - WRONG: <p>You haven't added anything</p>
+  - CORRECT: <p>You haven&apos;t added anything</p>
+  - CORRECT: <p>{"You haven't added anything"}</p>
 
 ### IMPORT RULES:
 - NEVER use "import React from 'react'" — React 18 with Vite does NOT need explicit React imports for JSX. Just write JSX directly.

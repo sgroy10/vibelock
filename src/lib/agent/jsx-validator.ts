@@ -57,7 +57,15 @@ export function validateJSX(filePath: string, content: string): ValidationResult
     "$1$2"
   );
 
-  // 3. Check JSX tag balance (simplified but catches common errors)
+  // 3. Fix apostrophes in JSX text — the #1 cause of "Unclosed string literal"
+  // Replace bare apostrophes in JSX text content (not in strings or attributes)
+  // e.g., "You haven't" → "You haven&apos;t"
+  result = result.replace(
+    />([\s\S]*?)</g,
+    (match) => match.replace(/(\w)'(\w)/g, "$1&apos;$2")
+  );
+
+  // 4. Check JSX tag balance (simplified but catches common errors)
   const tagErrors = checkTagBalance(result);
   if (tagErrors.length > 0) {
     errors.push(...tagErrors);
