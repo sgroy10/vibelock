@@ -14,6 +14,16 @@ import ConsolePanel from "@/components/workspace/ConsolePanel";
 import ChatMarkdown from "@/components/workspace/ChatMarkdown";
 import JSZip from "jszip";
 
+// New UX components
+import { toDisplayMessages, type DisplayMessage } from "@/lib/chat-types";
+import { generateSuggestions } from "@/lib/suggestions";
+import ChatMessage from "@/components/workspace/ChatMessage";
+import ChatInput from "@/components/workspace/ChatInput";
+import ThinkingIndicator from "@/components/workspace/ThinkingIndicator";
+import ProgressCard from "@/components/workspace/ProgressCard";
+import ProjectSidebar from "@/components/workspace/ProjectSidebar";
+import SuggestionChips from "@/components/workspace/SuggestionChips";
+
 /** Strip vibelock tags AND any code content from display text */
 function cleanDisplay(text: string): string {
   let clean = text;
@@ -86,6 +96,14 @@ export default function WorkspacePage() {
     clearTerminal,
     incrementRetry,
     resetRetry,
+    isThinking,
+    currentFiles,
+    suggestions,
+    buildComplete,
+    setIsThinking,
+    setCurrentFiles,
+    setSuggestions,
+    setBuildComplete,
   } = useWorkspaceStore();
 
   const isStreaming = phase === "streaming";
@@ -246,6 +264,7 @@ export default function WorkspacePage() {
       const decoder = new TextDecoder();
       const parser = new StreamParser();
       let fullText = "";
+      let firstChunk = true;
 
       setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
 
@@ -255,6 +274,12 @@ export default function WorkspacePage() {
         const chunk = decoder.decode(value, { stream: true });
         fullText += chunk;
         parser.feed(chunk);
+
+        // Turn off thinking indicator on first chunk
+        if (firstChunk) {
+          setIsThinking(false);
+          firstChunk = false;
+        }
 
         const displayText = cleanDisplay(fullText);
         setMessages((prev) => {
@@ -271,9 +296,15 @@ export default function WorkspacePage() {
       // This is the fix for dropped files (e.g., 4 planned but only 3 written)
       parser.flush();
 
+      // Track files created
+      const fileOps = parser.getAllOps().filter(op => op.type === "file");
+      if (fileOps.length > 0) {
+        setCurrentFiles(fileOps.map(op => op.type === "file" ? op.path : ""));
+      }
+
       return { text: fullText, ops: parser.getAllOps() };
     },
-    [projectId]
+    [projectId, constraints, secrets, setIsThinking, setCurrentFiles]
   );
 
   const sendMessage = async (text?: string) => {
@@ -303,22 +334,28 @@ export default function WorkspacePage() {
     setPhase("streaming");
     resetRetry();
     clearTerminal();
+    setIsThinking(true);
+    setBuildComplete(false);
+    setSuggestions([]);
 
     try {
       const { ops } = await streamChat(updatedMessages);
       if (ops.length === 0) {
         setPhase("idle");
+        setIsThinking(false);
         return;
       }
       const wc = wcRef.current;
       if (!wc) {
         setPhase("error", "WebContainer not ready");
+        setIsThinking(false);
         return;
       }
       await executeWithRetry(wc, ops, updatedMessages);
     } catch (err) {
       console.error("Send error:", err);
       setPhase("error", err instanceof Error ? err.message : "Unknown error");
+      setIsThinking(false);
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: "Sorry, something went wrong. Please try again." },
@@ -486,12 +523,24 @@ export default function WorkspacePage() {
         } else {
           appendTerminal("✅ App is running!\n");
           setPhase("ready");
+          setBuildComplete(true);
           setFileRefresh((n) => n + 1);
           // Force reload the iframe to avoid HMR stale state
           if (iframeRef.current && previewUrl) {
             iframeRef.current.src = previewUrl + "?r=" + Date.now();
           }
           clearConsoleLogs(); // Clear HMR noise from console
+
+          // Generate suggestions based on project files
+          try {
+            const projectFiles = await readProjectFiles(wc);
+            const filePaths = Object.keys(projectFiles);
+            setCurrentFiles(filePaths);
+            setSuggestions(generateSuggestions(filePaths));
+          } catch {
+            // fail silently
+          }
+
           setMessages((prev) => {
             const updated = [...prev];
             if (updated.length > 0 && updated[updated.length - 1].role === "assistant") {
@@ -610,6 +659,16 @@ export default function WorkspacePage() {
     }
   };
 
+  const handleSuggestionSelect = (text: string) => {
+    sendMessage(text);
+  };
+
+  // Convert messages to display messages for the new components
+  const displayMessages: DisplayMessage[] = toDisplayMessages(messages);
+
+  // Determine if we should show inline progress card
+  const showProgressCard = isBusy && phase !== "streaming";
+
   return (
     <div className="h-screen flex flex-col bg-white">
       {/* ── Top Bar ── */}
@@ -687,7 +746,10 @@ export default function WorkspacePage() {
       {/* ── Main 3-Panel Layout ── */}
       <div className="flex-1 flex overflow-hidden">
 
-        {/* ── LEFT: Chat Panel ── */}
+        {/* ── LEFT: Project Sidebar ── */}
+        <ProjectSidebar />
+
+        {/* ── CENTER: Chat Panel ── */}
         <div className="w-[340px] xl:w-[380px] flex flex-col border-r border-gray-100 shrink-0">
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-3 py-3">
@@ -697,23 +759,34 @@ export default function WorkspacePage() {
                   Describe what you want to build...
                 </div>
               )}
-              {messages.map((msg, i) => (
-                <div
-                  key={i}
-                  className={cn(
-                    "max-w-[92%] rounded-2xl px-3.5 py-2 text-[13px] leading-relaxed whitespace-pre-wrap",
-                    msg.role === "user"
-                      ? "ml-auto bg-orange-50 text-gray-900 border border-orange-100"
-                      : "mr-auto bg-gray-50 text-gray-700 border border-gray-100"
-                  )}
-                >
-                  {msg.content ? (
-                    msg.role === "assistant" ? <ChatMarkdown content={msg.content} /> : msg.content
-                  ) : (
-                    <span className="text-gray-400 italic">Thinking...</span>
-                  )}
-                </div>
+              {displayMessages.map((msg, i) => (
+                <ChatMessage
+                  key={msg.id}
+                  message={msg}
+                  isLast={i === displayMessages.length - 1}
+                  files={i === displayMessages.length - 1 && msg.role === "assistant" ? currentFiles : undefined}
+                  suggestions={
+                    i === displayMessages.length - 1 && msg.role === "assistant" && buildComplete
+                      ? suggestions
+                      : undefined
+                  }
+                  onSuggestionSelect={handleSuggestionSelect}
+                />
               ))}
+
+              {/* Inline Progress Card — shown during build phases */}
+              {showProgressCard && (
+                <ProgressCard
+                  phase={phase}
+                  detail={phaseDetail}
+                  retryCount={retryCount}
+                  terminalLines={terminalOutput}
+                />
+              )}
+
+              {/* Thinking Indicator */}
+              {isThinking && <ThinkingIndicator />}
+
               <div ref={messagesEndRef} />
             </div>
           </div>
@@ -732,7 +805,7 @@ export default function WorkspacePage() {
             </div>
           )}
 
-          {/* Input */}
+          {/* Input area */}
           <div className="px-3 pb-3 pt-2 border-t border-gray-100">
             <div className="flex items-center gap-1 mb-1.5">
               <button
@@ -745,12 +818,14 @@ export default function WorkspacePage() {
                 onClick={() => {
                   if (isListening) return;
                   if (!("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) { alert("Speech recognition not supported"); return; }
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
                   const recognition = new SR();
                   recognition.continuous = false;
                   recognition.interimResults = true;
                   recognition.lang = detectedLang.code === "hi" ? "hi-IN" : detectedLang.code === "gu" ? "gu-IN" : "en-US";
                   setIsListening(true);
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   recognition.onresult = (event: any) => { setInput(Array.from(event.results).map((r: any) => r[0].transcript).join("")); };
                   recognition.onerror = () => setIsListening(false);
                   recognition.onend = () => setIsListening(false);
@@ -762,30 +837,18 @@ export default function WorkspacePage() {
               </button>
             </div>
 
-            <div className="relative rounded-xl overflow-hidden bg-white border border-gray-200">
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                placeholder={isBusy ? "Building..." : "Describe what you want to build or change..."}
-                disabled={isBusy}
-                className="w-full bg-transparent text-gray-900 placeholder:text-gray-400 px-3 py-2.5 pr-16 text-[13px] resize-none outline-none disabled:opacity-50"
-                style={{ minHeight: "70px" }}
-              />
-              <button
-                onClick={() => sendMessage()}
-                disabled={!input.trim() || isBusy || !wcReady}
-                className="absolute right-2 bottom-2 px-3 py-1 rounded-lg text-[11px] font-medium text-white transition-all disabled:opacity-30 shadow-sm"
-                style={{ background: input.trim() && !isBusy ? "linear-gradient(135deg, #FF6B2C, #FF8F3C)" : "#E5E7EB" }}
-              >
-                {isBusy ? "..." : "Send"}
-              </button>
-            </div>
+            <ChatInput
+              onSend={(text) => sendMessage(text)}
+              isBusy={isBusy}
+              wcReady={wcReady}
+              hasMessages={messages.length > 0}
+              value={input}
+              onChange={setInput}
+            />
           </div>
         </div>
 
-        {/* ── CENTER + RIGHT: Preview / Files / Console ── */}
+        {/* ── RIGHT: Preview / Files / Console ── */}
         <div className="flex-1 flex flex-col">
 
           {/* Tab bar */}

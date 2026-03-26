@@ -17,6 +17,12 @@ interface WorkspaceState {
   terminalOutput: string[];
   retryCount: number;
 
+  // UX state
+  isThinking: boolean;
+  currentFiles: string[];
+  suggestions: string[];
+  buildComplete: boolean;
+
   // Actions
   setPhase: (phase: BuildPhase, detail?: string) => void;
   setPreviewUrl: (url: string | null) => void;
@@ -25,6 +31,12 @@ interface WorkspaceState {
   incrementRetry: () => void;
   resetRetry: () => void;
   reset: () => void;
+
+  // UX actions
+  setIsThinking: (v: boolean) => void;
+  setCurrentFiles: (files: string[]) => void;
+  setSuggestions: (suggestions: string[]) => void;
+  setBuildComplete: (v: boolean) => void;
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set) => ({
@@ -33,6 +45,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   previewUrl: null,
   terminalOutput: [],
   retryCount: 0,
+
+  isThinking: false,
+  currentFiles: [],
+  suggestions: [],
+  buildComplete: false,
 
   setPhase: (phase, detail = "") => set({ phase, phaseDetail: detail }),
   setPreviewUrl: (url) => set({ previewUrl: url }),
@@ -53,5 +70,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       previewUrl: null,
       terminalOutput: [],
       retryCount: 0,
+      isThinking: false,
+      currentFiles: [],
+      suggestions: [],
+      buildComplete: false,
     }),
+
+  setIsThinking: (v) => set({ isThinking: v }),
+  setCurrentFiles: (files) => set({ currentFiles: files }),
+  setSuggestions: (suggestions) => set({ suggestions }),
+  setBuildComplete: (v) => set({ buildComplete: v }),
 }));
