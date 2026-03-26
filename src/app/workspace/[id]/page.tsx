@@ -412,12 +412,17 @@ export default function WorkspacePage() {
     setPhase("writing", `Creating ${fileCount} files...`);
     appendTerminal(`📝 Writing ${fileCount} files...\n`);
 
+    appendTerminal(`📋 Files to write: ${fileOps.map(f => f.type === 'file' ? f.path : '').filter(Boolean).join(', ')}\n`);
     const { errors: fileErrors } = await executeOps(
       wc, fileOps,
       (data) => appendTerminal(data),
       (p, detail) => setPhase(p as typeof phase, detail),
       secrets.getAllEnvVars()
     );
+    appendTerminal(`✅ Written: ${fileOps.length - fileErrors.length}/${fileOps.length} files. Errors: ${fileErrors.length}\n`);
+    if (fileErrors.length > 0) {
+      appendTerminal(`❌ Failed files: ${fileErrors.map(e => e.op.type === 'file' ? e.op.path : e.error).join(', ')}\n`);
+    }
 
     // STEP 2: VALIDATE IMPORTS before starting dev server
     if (fileErrors.length === 0 && attempt < MAX_RETRIES) {

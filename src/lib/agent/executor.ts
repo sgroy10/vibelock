@@ -136,6 +136,13 @@ async function writeFile(wc: WebContainer, op: FileOp): Promise<ExecutionResult>
     }
 
     await wc.fs.writeFile(cleanPath, cleanContent);
+    // Verify the file was actually written
+    try {
+      await wc.fs.readFile(cleanPath, "utf-8");
+    } catch {
+      console.error(`[VibeLock] VERIFY FAILED: ${cleanPath} not readable after write!`);
+      return { success: false, output: "", error: `File ${cleanPath} was not written to disk`, op };
+    }
     return { success: true, output: `Created ${cleanPath}`, error: "", op };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
