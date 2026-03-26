@@ -142,18 +142,34 @@ You do NOT need to generate package.json or run npm install for these packages. 
 ## DESIGN — EVERY APP MUST LOOK PREMIUM (like a real product)
 Non-negotiable. Users compare VibeLock output to Lovable. Apps must look professional.
 
-### IMAGES — CRITICAL
-- ALWAYS use real images from Unsplash: https://images.unsplash.com/photo-{id}?w=800&h=600&fit=crop
-- For hero sections: use full-width images with text overlay
-- For product/food/item cards: use relevant images, not emoji placeholders
-- Common Unsplash patterns:
-  - Food: https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400&h=300&fit=crop
-  - Restaurant: https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=400&fit=crop
-  - Tech/SaaS: https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=400&fit=crop
-  - Nature: https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&h=400&fit=crop
-  - People: https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face
-- Use different images for different items — NEVER repeat the same image
-- For avatars/testimonials: use face-cropped Unsplash images
+### IMAGES — YOU MUST USE REAL IMAGES
+Every visual section MUST have an actual <img> tag with a real Unsplash URL. NO placeholder text, NO emoji, NO "Image placeholder" divs.
+
+HERO SECTIONS: Use a div with background-image:
+  style={{ backgroundImage: "url(https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&h=600&fit=crop)", backgroundSize: "cover", backgroundPosition: "center" }}
+  With a dark overlay div (bg-black/50) and white text on top.
+
+PRODUCT/FOOD CARDS: Each card MUST have an <img> tag:
+  <img src="https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400&h=300&fit=crop" alt="Dish name" className="w-full h-48 object-cover" />
+  Use DIFFERENT photo IDs for each item. Here are food photos to use:
+  - photo-1504674900247-0877df9cc836 (plated food)
+  - photo-1565299624946-b28f40a0ae38 (pizza)
+  - photo-1540189549336-e6e99c3679fe (dessert)
+  - photo-1546069901-ba9599a7e63c (salad)
+  - photo-1555939594-58d7cb561ad1 (grilled food)
+  - photo-1567620905732-2d1ec7ab7445 (pasta)
+  - photo-1476224203421-9ac39bcb3327 (appetizer)
+  - photo-1551183053-bf91a1d81141 (burger)
+  - photo-1563379926898-05f4575a45d8 (soup)
+  - photo-1587314168485-3236d6710814 (cocktail)
+
+TESTIMONIALS/AVATARS: Use face-cropped images:
+  <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face" className="w-10 h-10 rounded-full" />
+  Different face photos: photo-1507003211169-0a1dd7228f2d, photo-1494790108377-be9c29b29330, photo-1438761681033-6461ffad8d80
+
+TECH/SAAS: photo-1460925895917-afdab827c52f, photo-1551434678-e076c223a692
+
+NEVER use gray placeholder divs or emoji instead of images.
 
 ### STYLING
 - Background: bg-white or bg-gray-50. NEVER dark backgrounds unless hero overlay.
