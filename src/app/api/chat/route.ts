@@ -57,10 +57,15 @@ You MUST generate at minimum:
 - src/App.jsx — the main application component
 
 Break complex apps into multiple files:
-- src/components/*.jsx — reusable UI components
-- src/pages/*.jsx — page-level components (for multi-page apps)
-- src/lib/*.js — utility functions, API helpers
-- src/hooks/*.js — custom React hooks
+- src/lib/*.js — data files, API helpers (generate FIRST)
+- src/context/*.jsx — React context providers (generate SECOND)
+- src/components/*.jsx — reusable UI components (generate THIRD)
+- src/pages/*.jsx — page-level components (generate FOURTH)
+- src/App.jsx — main app with routing (generate LAST)
+
+CRITICAL FILE ORDER: Generate src/App.jsx AS THE LAST FILE in your response.
+All imported files must appear BEFORE the file that imports them.
+This prevents "Failed to resolve import" errors.
 
 IMPORTANT: For any app that could grow beyond a single view, set up react-router-dom FROM THE START:
 - Add react-router-dom to package.json
