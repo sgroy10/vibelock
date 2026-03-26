@@ -455,18 +455,22 @@ export async function POST(req: NextRequest) {
         model: OPENROUTER_MODEL,
         messages: openRouterMessages,
         stream: true,
-        max_tokens: 64000,
+        max_tokens: 16000,
       }),
     };
 
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", options);
     if (!res.ok) {
+      const errBody = await res.text().catch(() => "");
+      console.error(`[VibeLock] OpenRouter ${res.status}: ${errBody.slice(0, 200)}`);
       // Retry once on 5xx or rate limit
       if (res.status >= 500 || res.status === 429) {
-        console.warn(`OpenRouter ${res.status}, retrying in 2s...`);
+        console.warn(`[VibeLock] Retrying OpenRouter in 2s...`);
         await new Promise((r) => setTimeout(r, 2000));
         return fetch("https://openrouter.ai/api/v1/chat/completions", options);
       }
+      // Return a failed response so caller falls back
+      return new Response(errBody, { status: res.status });
     }
     return res;
   }
