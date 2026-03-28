@@ -22,7 +22,7 @@ const TEMPLATE_FILES: Record<string, string> = {
     dependencies: { react: "^18.3.1", "react-dom": "^18.3.1", "react-router-dom": "^7.1.1", "lucide-react": "^0.475.0" },
     devDependencies: { "@vitejs/plugin-react": "^4.3.4", vite: "^6.0.0", tailwindcss: "^3.4.0", postcss: "^8.4.0", autoprefixer: "^10.4.0" }
   }, null, 2),
-  "vite.config.js": `import { defineConfig } from 'vite'\nimport react from '@vitejs/plugin-react'\nexport default defineConfig({ plugins: [react()], server: { host: '0.0.0.0', port: 5173, allowedHosts: 'all' } })\n`,
+  "vite.config.js": `import { defineConfig } from 'vite'\nimport react from '@vitejs/plugin-react'\nexport default defineConfig({ plugins: [react()], server: { host: '0.0.0.0', port: 5173, allowedHosts: true } })\n`,
   "postcss.config.js": `export default { plugins: { tailwindcss: {}, autoprefixer: {} } }\n`,
   "tailwind.config.js": `export default { content: ['./index.html', './src/**/*.{js,jsx}'], theme: { extend: { fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] } } }, plugins: [] }\n`,
   "index.html": `<!DOCTYPE html>\n<html lang="en">\n<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>App</title></head>\n<body class="bg-white text-gray-900 min-h-screen font-sans"><div id="root"></div><script type="module" src="/src/main.jsx"></script></body>\n</html>\n`,
