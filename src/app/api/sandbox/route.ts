@@ -100,12 +100,13 @@ export async function POST(req: NextRequest) {
       // Start Vite dev server in background using nohup
       await sandbox.commands.run("nohup npx vite --host 0.0.0.0 --port 5173 > /tmp/vite.log 2>&1 &", { timeoutMs: 5000 }).catch(() => {});
 
-      // Wait for Vite to be ready
-      for (let i = 0; i < 20; i++) {
+      // Wait for Vite to FULLY compile (not just serve HTML shell)
+      // Check both root HTML and the main App module
+      for (let i = 0; i < 30; i++) {
         await new Promise(r => setTimeout(r, 2000));
         const check = await sandbox.commands.run(
-          "curl -s -o /dev/null -w '%{http_code}' http://localhost:5173 2>/dev/null || echo 0",
-          { timeoutMs: 5000 }
+          "curl -s -o /dev/null -w '%{http_code}' http://localhost:5173/src/App.jsx 2>/dev/null || echo 0",
+          { timeoutMs: 10000 }
         ).catch(() => ({ stdout: "0" }));
         if (check.stdout?.includes("200")) break;
       }
@@ -144,12 +145,12 @@ export async function POST(req: NextRequest) {
       await sandbox.commands.run("pkill -f vite 2>/dev/null; sleep 1", { timeoutMs: 10000 }).catch(() => {});
       await sandbox.commands.run("nohup npx vite --host 0.0.0.0 --port 5173 > /tmp/vite.log 2>&1 &", { timeoutMs: 5000 }).catch(() => {});
 
-      // Wait for Vite ready
-      for (let i = 0; i < 15; i++) {
+      // Wait for Vite to fully compile
+      for (let i = 0; i < 20; i++) {
         await new Promise(r => setTimeout(r, 2000));
         const check = await sandbox.commands.run(
-          "curl -s -o /dev/null -w '%{http_code}' http://localhost:5173 2>/dev/null || echo 0",
-          { timeoutMs: 5000 }
+          "curl -s -o /dev/null -w '%{http_code}' http://localhost:5173/src/App.jsx 2>/dev/null || echo 0",
+          { timeoutMs: 10000 }
         ).catch(() => ({ stdout: "0" }));
         if (check.stdout?.includes("200")) break;
       }
@@ -173,12 +174,12 @@ export async function POST(req: NextRequest) {
       await sandbox.commands.run("pkill -f vite 2>/dev/null; sleep 1", { timeoutMs: 10000 }).catch(() => {});
       await sandbox.commands.run("nohup npx vite --host 0.0.0.0 --port 5173 > /tmp/vite.log 2>&1 &", { timeoutMs: 5000 }).catch(() => {});
 
-      // Wait for ready
-      for (let i = 0; i < 15; i++) {
+      // Wait for full compilation
+      for (let i = 0; i < 20; i++) {
         await new Promise(r => setTimeout(r, 2000));
         const check = await sandbox.commands.run(
-          "curl -s -o /dev/null -w '%{http_code}' http://localhost:5173 2>/dev/null || echo 0",
-          { timeoutMs: 5000 }
+          "curl -s -o /dev/null -w '%{http_code}' http://localhost:5173/src/App.jsx 2>/dev/null || echo 0",
+          { timeoutMs: 10000 }
         ).catch(() => ({ stdout: "0" }));
         if (check.stdout?.includes("200")) break;
       }
