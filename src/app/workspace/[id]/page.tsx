@@ -726,7 +726,7 @@ export default function WorkspacePage() {
                     src={previewUrl}
                     className="w-full h-full border-0 bg-white"
                     title="App Preview"
-                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+                    allow="cross-origin-isolated"
                   />
                 </div>
               )}

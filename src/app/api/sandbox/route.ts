@@ -46,7 +46,7 @@ async function getOrCreateSandbox(projectId: string): Promise<Sandbox> {
   // Create new sandbox
   const sandbox = await Sandbox.create({
     apiKey: E2B_API_KEY!,
-    timeoutMs: 300_000, // 5 min timeout
+    timeoutMs: 1_800_000, // 30 min timeout
   });
   sandboxes.set(projectId, sandbox);
   return sandbox;
