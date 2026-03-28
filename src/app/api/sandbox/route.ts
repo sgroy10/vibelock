@@ -94,8 +94,8 @@ export async function POST(req: NextRequest) {
         }, { status: 500 });
       }
 
-      // Start Vite dev server in background
-      await sandbox.commands.run("npm run dev &", { timeoutMs: 5000 }).catch(() => {});
+      // Start Vite dev server in background using nohup
+      await sandbox.commands.run("nohup npx vite --host 0.0.0.0 --port 5173 > /tmp/vite.log 2>&1 &", { timeoutMs: 5000 }).catch(() => {});
 
       // Wait for Vite to be ready
       for (let i = 0; i < 20; i++) {
@@ -155,8 +155,8 @@ export async function POST(req: NextRequest) {
       }
 
       // Kill old Vite and restart
-      await sandbox.commands.run("pkill -f vite 2>/dev/null; sleep 1", { timeoutMs: 5000 }).catch(() => {});
-      await sandbox.commands.run("npm run dev &", { timeoutMs: 5000 }).catch(() => {});
+      await sandbox.commands.run("pkill -f vite 2>/dev/null; sleep 1", { timeoutMs: 10000 }).catch(() => {});
+      await sandbox.commands.run("nohup npx vite --host 0.0.0.0 --port 5173 > /tmp/vite.log 2>&1 &", { timeoutMs: 5000 }).catch(() => {});
 
       // Wait for ready
       for (let i = 0; i < 15; i++) {
