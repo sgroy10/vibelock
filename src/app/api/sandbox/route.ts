@@ -22,7 +22,7 @@ const TEMPLATE_FILES: Record<string, string> = {
     dependencies: { react: "^18.3.1", "react-dom": "^18.3.1", "react-router-dom": "^7.1.1", "lucide-react": "^0.475.0" },
     devDependencies: { "@vitejs/plugin-react": "^4.3.4", vite: "^6.0.0", tailwindcss: "^3.4.0", postcss: "^8.4.0", autoprefixer: "^10.4.0" }
   }, null, 2),
-  "vite.config.js": `import { defineConfig } from 'vite'\nimport react from '@vitejs/plugin-react'\nexport default defineConfig({ plugins: [react()], server: { host: '0.0.0.0', port: 5173 } })\n`,
+  "vite.config.js": `import { defineConfig } from 'vite'\nimport react from '@vitejs/plugin-react'\nexport default defineConfig({ plugins: [react()], server: { host: '0.0.0.0', port: 5173, allowedHosts: 'all' } })\n`,
   "postcss.config.js": `export default { plugins: { tailwindcss: {}, autoprefixer: {} } }\n`,
   "tailwind.config.js": `export default { content: ['./index.html', './src/**/*.{js,jsx}'], theme: { extend: { fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] } } }, plugins: [] }\n`,
   "index.html": `<!DOCTYPE html>\n<html lang="en">\n<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>App</title></head>\n<body class="bg-white text-gray-900 min-h-screen font-sans"><div id="root"></div><script type="module" src="/src/main.jsx"></script></body>\n</html>\n`,
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
       }
 
       // E2B preview URL — real subdomain, works everywhere
-      const previewUrl = `https://${sandbox.sandboxId}-5173.e2b.dev`;
+      const previewUrl = `https://${sandbox.getHost(5173)}`;
 
       return NextResponse.json({
         sandboxId: sandbox.sandboxId,
@@ -168,7 +168,7 @@ export async function POST(req: NextRequest) {
         if (check.stdout?.includes("200")) break;
       }
 
-      const previewUrl = `https://${sandbox.sandboxId}-5173.e2b.dev`;
+      const previewUrl = `https://${sandbox.getHost(5173)}`;
       return NextResponse.json({ previewUrl });
     }
 
