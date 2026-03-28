@@ -366,16 +366,13 @@ export default function WorkspacePage() {
         // SUBSEQUENT messages — write files + restart vite
         try {
           appendTerminal("📝 Updating sandbox files...\n");
+          setPhase("starting", "Updating sandbox...");
+          appendTerminal("📝 Writing files + restarting Vite...\n");
           const writeResult = await writeToSandbox(sandboxId, files);
-          appendTerminal(`✅ Written: ${writeResult.written} files, verified: ${writeResult.verified}\n`);
-
-          setPhase("starting", "Restarting dev server...");
-          appendTerminal("🚀 Restarting Vite...\n");
-          const viteResult = await restartVite(sandboxId);
-          if (viteResult.previewUrl) {
-            setPreviewUrl(viteResult.previewUrl);
+          appendTerminal(`✅ ${writeResult.written} files written. Vite restarted.\n`);
+          if (writeResult.previewUrl) {
+            setPreviewUrl(writeResult.previewUrl);
           }
-          appendTerminal(`✅ Vite restarted! Preview: ${viteResult.previewUrl}\n`);
           setPhase("ready");
           setBuildComplete(true);
 

@@ -19,7 +19,7 @@ export async function createSandbox(
 export async function writeToSandbox(
   sandboxId: string,
   files: { path: string; content: string }[]
-): Promise<{ written: number; verified: number }> {
+): Promise<{ written: number; verified: number; previewUrl?: string }> {
   const res = await fetch("/api/sandbox", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

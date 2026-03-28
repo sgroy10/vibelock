@@ -11,8 +11,10 @@ import { Sandbox } from "e2b";
 
 const E2B_API_KEY = process.env.E2B_API_KEY;
 
-// Keep track of active sandboxes (in-memory for now)
+// Keep track of active sandboxes (in-memory)
+// Keyed by BOTH projectId and sandboxId for lookup from either
 const sandboxes = new Map<string, Sandbox>();
+const sandboxIdMap = new Map<string, Sandbox>(); // sandboxId → Sandbox
 
 // Golden template files
 const TEMPLATE_FILES: Record<string, string> = {
@@ -49,6 +51,7 @@ async function getOrCreateSandbox(projectId: string): Promise<Sandbox> {
     timeoutMs: 1_800_000, // 30 min timeout
   });
   sandboxes.set(projectId, sandbox);
+  sandboxIdMap.set(sandbox.sandboxId, sandbox);
   return sandbox;
 }
 
@@ -124,12 +127,9 @@ export async function POST(req: NextRequest) {
       };
 
       // Find sandbox by ID
-      let sandbox: Sandbox | undefined;
-      for (const [, sb] of sandboxes) {
-        if (sb.sandboxId === sandboxId) { sandbox = sb; break; }
-      }
+      const sandbox = sandboxIdMap.get(sandboxId);
       if (!sandbox) {
-        return NextResponse.json({ error: "Sandbox not found" }, { status: 404 });
+        return NextResponse.json({ error: "Sandbox not found: " + sandboxId }, { status: 404 });
       }
 
       let written = 0;
@@ -140,7 +140,22 @@ export async function POST(req: NextRequest) {
         written++;
       }
 
-      return NextResponse.json({ written, verified: written });
+      // Auto-restart Vite after writing files
+      await sandbox.commands.run("pkill -f vite 2>/dev/null; sleep 1", { timeoutMs: 10000 }).catch(() => {});
+      await sandbox.commands.run("nohup npx vite --host 0.0.0.0 --port 5173 > /tmp/vite.log 2>&1 &", { timeoutMs: 5000 }).catch(() => {});
+
+      // Wait for Vite ready
+      for (let i = 0; i < 15; i++) {
+        await new Promise(r => setTimeout(r, 2000));
+        const check = await sandbox.commands.run(
+          "curl -s -o /dev/null -w '%{http_code}' http://localhost:5173 2>/dev/null || echo 0",
+          { timeoutMs: 5000 }
+        ).catch(() => ({ stdout: "0" }));
+        if (check.stdout?.includes("200")) break;
+      }
+
+      const previewUrl = `https://${sandbox.getHost(5173)}`;
+      return NextResponse.json({ written, verified: written, previewUrl });
     }
 
     if (action === "restart") {
