@@ -335,6 +335,12 @@ export default function WorkspacePage() {
           setPreviewUrl(result.previewUrl);
           appendTerminal(`✅ Sandbox created! Preview: ${result.previewUrl}\n`);
           setPhase("ready");
+          // Auto-reload iframe after 5s to ensure React has mounted
+          setTimeout(() => {
+            if (iframeRef.current) {
+              iframeRef.current.src = result.previewUrl;
+            }
+          }, 5000);
           setBuildComplete(true);
 
           // Generate suggestions
@@ -372,6 +378,12 @@ export default function WorkspacePage() {
           appendTerminal(`✅ ${writeResult.written} files written. Vite restarted.\n`);
           if (writeResult.previewUrl) {
             setPreviewUrl(writeResult.previewUrl);
+            // Auto-reload iframe after 5s
+            setTimeout(() => {
+              if (iframeRef.current) {
+                iframeRef.current.src = writeResult.previewUrl!;
+              }
+            }, 5000);
           }
           setPhase("ready");
           setBuildComplete(true);
