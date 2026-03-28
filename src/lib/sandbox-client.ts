@@ -1,120 +1,55 @@
 /**
- * Cloudflare Container Sandbox Client
- * Replaces WebContainer with remote Cloudflare sandbox API calls.
+ * E2B Sandbox Client — calls VibeLock's sandbox API.
+ * Preview URL: https://{sandboxId}-5173.e2b.dev (real subdomain, works in iframe)
  */
 
-const SANDBOX_URL = "https://vibelock-sandbox.sgroy10.workers.dev";
-
-export interface SandboxFile {
-  path: string;
-  content: string;
-}
-
-export interface CreateSandboxResult {
-  sandboxId: string;
-  previewUrl: string;
-  viteReady?: boolean;
-}
-
-export interface WriteSandboxResult {
-  written: number;
-  verified: number;
-}
-
-export interface ExecResult {
-  stdout: string;
-  stderr: string;
-  exitCode: number;
-}
-
-export interface RestartViteResult {
-  success: boolean;
-  previewUrl: string;
-}
-
-/**
- * Create a new sandbox with the given files.
- * Called on first message or when restoring a saved project.
- */
 export async function createSandbox(
   projectId: string,
-  files: SandboxFile[]
-): Promise<CreateSandboxResult> {
-  const res = await fetch(`${SANDBOX_URL}/api/sandbox/create`, {
+  files: { path: string; content: string }[]
+): Promise<{ sandboxId: string; previewUrl: string }> {
+  const res = await fetch("/api/sandbox", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ projectId, files }),
+    body: JSON.stringify({ action: "create", projectId, files }),
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Sandbox create failed (${res.status}): ${text}`);
-  }
-  const data = await res.json();
-  return {
-    sandboxId: data.sandboxId,
-    previewUrl: data.previewUrl,
-    viteReady: data.viteReady,
-  };
+  if (!res.ok) throw new Error(`Sandbox create failed: ${await res.text()}`);
+  return res.json();
 }
 
-/**
- * Write files to an existing sandbox.
- * Called on subsequent messages after the sandbox is already created.
- */
 export async function writeToSandbox(
   sandboxId: string,
-  files: SandboxFile[]
-): Promise<WriteSandboxResult> {
-  const res = await fetch(`${SANDBOX_URL}/api/sandbox/write`, {
+  files: { path: string; content: string }[]
+): Promise<{ written: number; verified: number }> {
+  const res = await fetch("/api/sandbox", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sandboxId, files }),
+    body: JSON.stringify({ action: "write", sandboxId, files }),
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Sandbox write failed (${res.status}): ${text}`);
-  }
-  const data = await res.json();
-  return { written: data.written, verified: data.verified };
+  if (!res.ok) throw new Error("Write failed");
+  return res.json();
 }
 
-/**
- * Execute a command in the sandbox.
- * Used for file explorer (ls, cat) and other operations.
- */
+export async function restartVite(
+  sandboxId: string
+): Promise<{ previewUrl: string }> {
+  const res = await fetch("/api/sandbox", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "restart", sandboxId }),
+  });
+  if (!res.ok) throw new Error("Restart failed");
+  return res.json();
+}
+
 export async function execInSandbox(
   sandboxId: string,
   command: string
-): Promise<ExecResult> {
-  const res = await fetch(`${SANDBOX_URL}/api/sandbox/exec`, {
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  const res = await fetch("/api/sandbox", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sandboxId, command }),
+    body: JSON.stringify({ action: "exec", sandboxId, command }),
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Sandbox exec failed (${res.status}): ${text}`);
-  }
-  const data = await res.json();
-  return { stdout: data.stdout, stderr: data.stderr, exitCode: data.exitCode };
-}
-
-/**
- * Restart Vite dev server in the sandbox.
- * Called after writing new files to trigger a rebuild.
- */
-export async function restartVite(
-  sandboxId: string
-): Promise<RestartViteResult> {
-  const res = await fetch(`${SANDBOX_URL}/api/sandbox/restart-vite`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sandboxId }),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Sandbox restart-vite failed (${res.status}): ${text}`);
-  }
-  const data = await res.json();
-  return { success: data.success, previewUrl: data.previewUrl };
+  if (!res.ok) throw new Error("Exec failed");
+  return res.json();
 }
