@@ -3,15 +3,13 @@
 import { useParams, useSearchParams } from "next/navigation";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { cn } from "@/lib/cn";
-import { getWebContainer, isTemplateReady, readProjectFiles } from "@/lib/webcontainer";
-import { LOCKED_CONFIG_FILES } from "@/lib/golden-template";
-import { StreamParser, type VibeLockOp } from "@/lib/agent/parser";
+import { createSandbox, writeToSandbox, restartVite } from "@/lib/sandbox-client";
+import { StreamParser, type VibeLockOp, type FileOp } from "@/lib/agent/parser";
 import { detectLanguage, SUPPORTED_LANGUAGES, type Language } from "@/lib/language";
-import { detectConstraints, formatConstraintsForPrompt, type Constraint } from "@/lib/speclock";
+import { detectConstraints, type Constraint } from "@/lib/speclock";
 import { useSecretsStore } from "@/stores/secrets";
 import FileExplorer from "@/components/workspace/FileExplorer";
 import ConsolePanel from "@/components/workspace/ConsolePanel";
-import ChatMarkdown from "@/components/workspace/ChatMarkdown";
 import JSZip from "jszip";
 
 // New UX components
@@ -22,7 +20,8 @@ import ChatInput from "@/components/workspace/ChatInput";
 import ThinkingIndicator from "@/components/workspace/ThinkingIndicator";
 import ProgressCard from "@/components/workspace/ProgressCard";
 import ProjectSidebar from "@/components/workspace/ProjectSidebar";
-import SuggestionChips from "@/components/workspace/SuggestionChips";
+import { startConsoleCapture } from "@/lib/console-capture";
+import { useWorkspaceStore } from "@/stores/workspace";
 
 /** Strip vibelock tags AND any code content from display text */
 function cleanDisplay(text: string): string {
@@ -41,21 +40,14 @@ function cleanDisplay(text: string): string {
   clean = clean.replace(/\n{3,}/g, "\n\n").trim();
   return clean;
 }
-import { executeOps, formatErrorForRetry, killDevServer, preflightBuildCheck } from "@/lib/agent/executor";
-import { validateImports, formatMissingImports } from "@/lib/agent/validator";
-import { startConsoleCapture, getConsoleErrors, clearConsoleLogs } from "@/lib/console-capture";
-import { useWorkspaceStore } from "@/stores/workspace";
-import type { WebContainer } from "@webcontainer/api";
 
 type Message = { role: "user" | "assistant"; content: string };
-
-const MAX_RETRIES = 5;
 
 const PHASE_LABELS: Record<string, { label: string; icon: string }> = {
   idle: { label: "Ready", icon: "🎯" },
   streaming: { label: "Generating code...", icon: "✨" },
   writing: { label: "Creating files...", icon: "📝" },
-  installing: { label: "Installing packages...", icon: "📦" },
+  installing: { label: "Setting up sandbox...", icon: "📦" },
   starting: { label: "Starting your app...", icon: "🚀" },
   ready: { label: "Your app is ready!", icon: "✅" },
   error: { label: "Something went wrong", icon: "❌" },
@@ -76,13 +68,13 @@ export default function WorkspacePage() {
   const [isDeploying, setIsDeploying] = useState(false);
   const [deployUrl, setDeployUrl] = useState<string | null>(null);
   const [deviceFrame, setDeviceFrame] = useState<"desktop" | "tablet" | "mobile">("desktop");
-  const [devServerRunning, setDevServerRunning] = useState(false);
   const secrets = useSecretsStore();
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const wcRef = useRef<WebContainer | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const [wcReady, setWcReady] = useState(false);
+
+  // Sandbox state — replaces WebContainer state
+  const [sandboxId, setSandboxId] = useState<string | null>(null);
+  const [sandboxReady, setSandboxReady] = useState(true); // No boot delay — ready immediately
 
   const {
     phase,
@@ -106,27 +98,23 @@ export default function WorkspacePage() {
     setBuildComplete,
   } = useWorkspaceStore();
 
-  const isStreaming = phase === "streaming";
   const isBusy = phase !== "idle" && phase !== "ready" && phase !== "error";
 
-  const [templateInstalled, setTemplateInstalled] = useState(false);
   const [projectLoaded, setProjectLoaded] = useState(false);
   const [savedFiles, setSavedFiles] = useState<Record<string, string> | null>(null);
 
   // ─── PERSISTENCE: Save project state to DB ───
   const saveProject = useCallback(async () => {
-    const wc = wcRef.current;
-    if (!wc) return;
+    // With sandbox, we don't read files from the container — we save what we have locally
+    // The files are tracked via currentFiles in the workspace store
     try {
-      const files = await readProjectFiles(wc);
-      const currentMessages = useWorkspaceStore.getState().phase === "ready"
-        ? messages : messages; // always save current messages
+      const currentMessages = messages;
       await fetch(`/api/projects/${projectId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: currentMessages,
-          files,
+          files: savedFiles || {},
           constraints: constraints.map((c) => ({ text: c.text, source: c.source })),
           name: initialPrompt?.slice(0, 60) || "Untitled",
         }),
@@ -134,7 +122,7 @@ export default function WorkspacePage() {
     } catch (err) {
       console.warn("Failed to save project:", err);
     }
-  }, [messages, constraints, projectId, initialPrompt]);
+  }, [messages, constraints, projectId, initialPrompt, savedFiles]);
 
   // ─── PERSISTENCE: Load project state from DB ───
   const loadProject = useCallback(async () => {
@@ -149,37 +137,15 @@ export default function WorkspacePage() {
     }
   }, [projectId]);
 
-  // ─── PERSISTENCE: Restore files to WebContainer ───
-  const restoreFiles = useCallback(async (wc: WebContainer, files: Record<string, string>) => {
-    for (const [path, content] of Object.entries(files)) {
-      const parts = path.split("/");
-      if (parts.length > 1) {
-        const dir = parts.slice(0, -1).join("/");
-        try { await wc.fs.mkdir(dir, { recursive: true }); } catch { /* exists */ }
-      }
-      await wc.fs.writeFile(path, content);
-    }
-  }, []);
-
   // Start listening for console errors from preview iframe
   useEffect(() => {
     startConsoleCapture();
     return () => {};
   }, []);
 
-  // Boot WebContainer + load saved project
+  // Load saved project on mount — no WebContainer boot needed
   useEffect(() => {
-    setPhase("installing", "Setting up sandbox...");
-
-    Promise.all([getWebContainer(), loadProject()]).then(async ([wc, saved]) => {
-      wcRef.current = wc;
-
-      wc.on("server-ready", (_port: number, url: string) => {
-        setPreviewUrl(url);
-        setDevServerRunning(true);
-      });
-
-      // Restore saved project if it exists
+    loadProject().then(async (saved) => {
       if (saved && saved.messages && saved.messages.length > 0) {
         setMessages(saved.messages);
         if (saved.constraints) {
@@ -190,39 +156,40 @@ export default function WorkspacePage() {
             createdAt: c.createdAt ? new Date(c.createdAt).getTime() : Date.now(),
           })));
         }
-        // Restore files to WebContainer
+        // Restore files to sandbox
         if (saved.files && Object.keys(saved.files).length > 0) {
           setSavedFiles(saved.files);
           setPhase("installing", "Restoring your project...");
-          appendTerminal("📂 Restoring saved files...\n");
-          await restoreFiles(wc, saved.files);
-          appendTerminal(`✅ Restored ${Object.keys(saved.files).length} files\n`);
-          // Start dev server with restored files
-          appendTerminal("🚀 Starting dev server...\n");
-          setPhase("starting", "Starting your app...");
-          const proc = await wc.spawn("npm", ["run", "dev"]);
-          proc.output.pipeTo(new WritableStream({ write(data) { appendTerminal(data); } })).catch(() => {});
+          appendTerminal("📂 Restoring saved files to sandbox...\n");
+          try {
+            const files = Object.entries(saved.files as Record<string, string>).map(([path, content]) => ({ path, content }));
+            const result = await createSandbox(projectId, files);
+            setSandboxId(result.sandboxId);
+            setPreviewUrl(result.previewUrl);
+            appendTerminal(`✅ Sandbox restored with ${files.length} files\n`);
+            setPhase("ready");
+            setBuildComplete(true);
+          } catch (err) {
+            appendTerminal(`❌ Failed to restore sandbox: ${err instanceof Error ? err.message : "Unknown error"}\n`);
+            setPhase("error", "Failed to restore project");
+          }
           setProjectLoaded(true);
-          setWcReady(true);
-          setTemplateInstalled(true);
           return;
         }
       }
 
-      // No saved project — fresh start
-      setWcReady(true);
-      setTemplateInstalled(isTemplateReady());
+      // No saved project — fresh start, ready immediately
       setPhase("idle");
       setProjectLoaded(true);
     });
-  }, [setPhase, setPreviewUrl]);
+  }, [setPhase, setPreviewUrl, projectId, appendTerminal, setBuildComplete, loadProject]);
 
   // Auto-send initial prompt (only for new projects, not restored ones)
   useEffect(() => {
-    if (initialPrompt && messages.length === 0 && wcReady && projectLoaded) {
+    if (initialPrompt && messages.length === 0 && sandboxReady && projectLoaded) {
       sendMessage(initialPrompt);
     }
-  }, [initialPrompt, wcReady, projectLoaded]);
+  }, [initialPrompt, sandboxReady, projectLoaded]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -230,16 +197,8 @@ export default function WorkspacePage() {
 
   const streamChat = useCallback(
     async (chatMessages: Message[]): Promise<{ text: string; ops: VibeLockOp[] }> => {
-      // Phase 1: Context Engine — read current project files and send to AI
-      let projectContext: Record<string, string> = {};
-      const wc = wcRef.current;
-      if (wc) {
-        try {
-          projectContext = await readProjectFiles(wc);
-        } catch {
-          // fail silently — AI will work without context
-        }
-      }
+      // Build project context from saved files (no WebContainer to read from)
+      const projectContext: Record<string, string> = savedFiles || {};
 
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -247,7 +206,7 @@ export default function WorkspacePage() {
         body: JSON.stringify({
           messages: chatMessages,
           projectId,
-          projectContext, // existing files for the AI to reference
+          projectContext,
           isFirstMessage: chatMessages.filter(m => m.role === "user").length === 1,
           constraints: constraints.map((c) => c.text),
           secrets: {
@@ -293,7 +252,6 @@ export default function WorkspacePage() {
       }
 
       // CRITICAL: flush captures any in-progress file that wasn't closed
-      // This is the fix for dropped files (e.g., 4 planned but only 3 written)
       parser.flush();
 
       // Track files created
@@ -304,7 +262,7 @@ export default function WorkspacePage() {
 
       return { text: fullText, ops: parser.getAllOps() };
     },
-    [projectId, constraints, secrets, setIsThinking, setCurrentFiles]
+    [projectId, constraints, secrets, setIsThinking, setCurrentFiles, savedFiles]
   );
 
   const sendMessage = async (text?: string) => {
@@ -345,195 +303,44 @@ export default function WorkspacePage() {
         setIsThinking(false);
         return;
       }
-      const wc = wcRef.current;
-      if (!wc) {
-        setPhase("error", "WebContainer not ready");
+
+      // Extract file ops
+      const fileOps = ops.filter((o): o is FileOp => o.type === "file");
+      if (fileOps.length === 0) {
+        setPhase("idle");
         setIsThinking(false);
         return;
       }
-      await executeWithRetry(wc, ops, updatedMessages);
-    } catch (err) {
-      console.error("Send error:", err);
-      setPhase("error", err instanceof Error ? err.message : "Unknown error");
-      setIsThinking(false);
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "Sorry, something went wrong. Please try again." },
-      ]);
-    }
-  };
 
-  const executeWithRetry = async (
-    wc: WebContainer,
-    ops: VibeLockOp[],
-    chatMessages: Message[],
-    attempt = 0
-  ) => {
-    // Filter out config files that AI shouldn't regenerate (golden template handles these)
-    // Exception: package.json is allowed through when AI needs to add new dependencies
-    ops = ops.filter((op) => {
-      if (op.type === "file" && op.path !== "package.json" && LOCKED_CONFIG_FILES.has(op.path)) {
-        appendTerminal(`⏭ Skipping locked config: ${op.path}\n`);
-        return false;
+      const files = fileOps.map((op) => ({ path: op.path, content: op.content }));
+
+      setPhase("writing", `Creating ${files.length} files...`);
+      appendTerminal(`📝 Writing ${files.length} files to sandbox...\n`);
+      appendTerminal(`📋 Files: ${files.map(f => f.path).join(", ")}\n`);
+
+      // Track files for persistence
+      const newSavedFiles = { ...(savedFiles || {}) };
+      for (const f of files) {
+        newSavedFiles[f.path] = f.content;
       }
-      return true;
-    });
+      setSavedFiles(newSavedFiles);
 
-    const hasInstall = ops.some((o) => o.type === "shell" && o.command.includes("install"));
-    const hasDev = ops.some((o) => o.type === "shell" && (o.command.includes("dev") || o.command.includes("start")));
-    const hasFiles = ops.some((o) => o.type === "file");
-    const hasNewDeps = ops.some((o) => o.type === "file" && o.path === "package.json");
-    const onlySrcFiles = hasFiles && ops.filter((o) => o.type === "file").every((o) => o.type === "file" && o.path.startsWith("src/"));
-    const isRetry = attempt > 0;
-
-    // HMR DISABLED — always run full build check pipeline.
-    // HMR was skipping the pre-flight build check, causing broken code
-    // to go directly to the dev server. Reliability > speed.
-    const useHMR = false;
-
-    if (useHMR) {
-      appendTerminal("⚡ HMR: Only src/ files changed, skipping restart\n");
-      ops = ops.filter((o) => o.type === "file");
-    } else {
-      // Always ensure npm install + dev server start
-      if (hasFiles && !hasInstall && (hasNewDeps || !isTemplateReady())) {
-        ops.push({ type: "shell", command: "npm install" });
-      }
-      if (hasFiles && !hasDev) {
-        ops.push({ type: "shell", command: "npm run dev" });
-      }
-    }
-
-    // STEP 1: Write files ONLY (no shell commands yet)
-    const fileOps = ops.filter((o) => o.type === "file");
-    const shellOps = ops.filter((o) => o.type === "shell");
-
-    const fileCount = fileOps.length;
-    setPhase("writing", `Creating ${fileCount} files...`);
-    appendTerminal(`📝 Writing ${fileCount} files...\n`);
-
-    appendTerminal(`📋 Files to write: ${fileOps.map(f => f.type === 'file' ? f.path : '').filter(Boolean).join(', ')}\n`);
-    const { errors: fileErrors } = await executeOps(
-      wc, fileOps,
-      (data) => appendTerminal(data),
-      (p, detail) => setPhase(p as typeof phase, detail),
-      secrets.getAllEnvVars()
-    );
-    appendTerminal(`✅ Written: ${fileOps.length - fileErrors.length}/${fileOps.length} files. Errors: ${fileErrors.length}\n`);
-    if (fileErrors.length > 0) {
-      appendTerminal(`❌ Failed files: ${fileErrors.map(e => e.op.type === 'file' ? e.op.path : e.error).join(', ')}\n`);
-    }
-
-    // STEP 2: VALIDATE IMPORTS before starting dev server
-    if (fileErrors.length === 0 && attempt < MAX_RETRIES) {
-      appendTerminal("🔍 Validating imports...\n");
-      const missingImports = await validateImports(wc);
-      if (missingImports.length > 0) {
-        const missingFiles = missingImports.map((m) => m.resolvedPath + ".jsx").join(", ");
-        appendTerminal(`⚠️ Missing files: ${missingFiles}. Generating...\n`);
-        incrementRetry();
-        const fixMsg = formatMissingImports(missingImports);
-        const fixMessages: Message[] = [
-          ...chatMessages,
-          { role: "assistant", content: "(files generated but some imports are missing)" },
-          { role: "user", content: fixMsg },
-        ];
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: `📝 Creating missing files: ${missingFiles}` },
-        ]);
-        setPhase("streaming");
-        const { ops: fixOps } = await streamChat(fixMessages);
-        if (fixOps.length > 0) {
-          // Add shell commands back and restart full pipeline
-          const allFixOps = [...fixOps, ...shellOps];
-          await executeWithRetry(wc, allFixOps, fixMessages, attempt + 1);
-        }
-        return;
-      }
-    }
-
-    // STEP 3: Run shell commands (npm install, npm run dev)
-    const { errors } = await executeOps(
-      wc, shellOps,
-      (data) => appendTerminal(data),
-      (p, detail) => setPhase(p as typeof phase, detail),
-    );
-
-    // Merge file errors + shell errors
-    const allErrors = [...fileErrors, ...errors];
-
-    // Skip pre-flight build check — it adds 30s per attempt.
-    // Vite dev server catches errors faster via runtime error detection.
-
-    if (allErrors.length === 0 && useHMR) {
-      appendTerminal("⏳ Waiting for HMR update...\n");
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      // Check for runtime errors after HMR
-      const runtimeErrors = getConsoleErrors();
-      if (runtimeErrors && attempt < MAX_RETRIES) {
-        appendTerminal("⚠️ Runtime error detected after HMR. Auto-fixing...\n");
-        errors.push({ success: false, output: "", error: runtimeErrors, op: { type: "shell", command: "runtime" } });
-      } else {
-        appendTerminal("✅ Files updated via HMR\n");
-        setPhase("ready");
-        setFileRefresh((n) => n + 1);
-        saveProject(); // Auto-save after successful HMR update
-        return;
-      }
-    }
-
-    if (allErrors.length === 0) {
-      // Wait for dev server — poll for up to 45 seconds
-      appendTerminal("⏳ Waiting for dev server...\n");
-      const getStore = useWorkspaceStore.getState;
-      let serverStarted = false;
-      for (let i = 0; i < 15; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 3000));
-        if (getStore().previewUrl) {
-          serverStarted = true;
-          break;
-        }
-      }
-
-      if (serverStarted) {
-        // Server started — wait for app to fully load and check for errors
-        // Two-pass check: 3s + 4s to catch both fast and slow errors
-        appendTerminal("🔍 Checking for errors...\n");
-        clearConsoleLogs();
-        await new Promise((resolve) => setTimeout(resolve, 3000));
-        let runtimeErrors = getConsoleErrors();
-        if (!runtimeErrors) {
-          // Second check — some errors appear after initial render
-          await new Promise((resolve) => setTimeout(resolve, 4000));
-          runtimeErrors = getConsoleErrors();
-        }
-
-        if (runtimeErrors && attempt < MAX_RETRIES) {
-          // App built but crashes at runtime — auto-fix!
-          appendTerminal("⚠️ App has runtime errors. Auto-fixing...\n");
-          setPhase("error", "Runtime error — fixing...");
-          errors.push({ success: false, output: "", error: `Runtime error in browser:\n${runtimeErrors}`, op: { type: "shell", command: "runtime" } });
-        } else {
-          appendTerminal("✅ App is running!\n");
+      if (!sandboxId) {
+        // FIRST message — create sandbox
+        setPhase("installing", "Creating sandbox...");
+        appendTerminal("📦 Creating sandbox...\n");
+        try {
+          const result = await createSandbox(projectId, files);
+          setSandboxId(result.sandboxId);
+          setPreviewUrl(result.previewUrl);
+          appendTerminal(`✅ Sandbox created! Preview: ${result.previewUrl}\n`);
           setPhase("ready");
           setBuildComplete(true);
-          setFileRefresh((n) => n + 1);
-          // Force reload the iframe to avoid HMR stale state
-          if (iframeRef.current && previewUrl) {
-            iframeRef.current.src = previewUrl;
-          }
-          clearConsoleLogs(); // Clear HMR noise from console
 
-          // Generate suggestions based on project files
-          try {
-            const projectFiles = await readProjectFiles(wc);
-            const filePaths = Object.keys(projectFiles);
-            setCurrentFiles(filePaths);
-            setSuggestions(generateSuggestions(filePaths));
-          } catch {
-            // fail silently
-          }
+          // Generate suggestions
+          const filePaths = Object.keys(newSavedFiles);
+          setCurrentFiles(filePaths);
+          setSuggestions(generateSuggestions(filePaths));
 
           setMessages((prev) => {
             const updated = [...prev];
@@ -548,52 +355,69 @@ export default function WorkspacePage() {
             }
             return updated;
           });
+
+          setFileRefresh((n) => n + 1);
           saveProject();
-          return;
+        } catch (err) {
+          appendTerminal(`❌ Sandbox creation failed: ${err instanceof Error ? err.message : "Unknown error"}\n`);
+          setPhase("error", err instanceof Error ? err.message : "Sandbox creation failed");
         }
-      } else if (attempt < MAX_RETRIES) {
-        // Server didn't start — treat as error and auto-retry
-        appendTerminal("❌ Dev server failed to start. Retrying...\n");
-        errors.push({
-          success: false, output: "", op: { type: "shell", command: "npm run dev" },
-          error: "Dev server did not start within 45 seconds. npm install likely failed or package.json is invalid.",
-        });
       } else {
-        setPhase("error", "Dev server failed to start");
-        appendTerminal("❌ Dev server failed after all retries.\n");
+        // SUBSEQUENT messages — write files + restart vite
+        try {
+          appendTerminal("📝 Updating sandbox files...\n");
+          const writeResult = await writeToSandbox(sandboxId, files);
+          appendTerminal(`✅ Written: ${writeResult.written} files, verified: ${writeResult.verified}\n`);
+
+          setPhase("starting", "Restarting dev server...");
+          appendTerminal("🚀 Restarting Vite...\n");
+          const viteResult = await restartVite(sandboxId);
+          if (viteResult.previewUrl) {
+            setPreviewUrl(viteResult.previewUrl);
+          }
+          appendTerminal(`✅ Vite restarted! Preview: ${viteResult.previewUrl}\n`);
+          setPhase("ready");
+          setBuildComplete(true);
+
+          // Generate suggestions
+          const filePaths = Object.keys(newSavedFiles);
+          setCurrentFiles(filePaths);
+          setSuggestions(generateSuggestions(filePaths));
+
+          setMessages((prev) => {
+            const updated = [...prev];
+            if (updated.length > 0 && updated[updated.length - 1].role === "assistant") {
+              const existing = updated[updated.length - 1].content;
+              if (existing === "Building your app..." || !existing.includes("ready")) {
+                updated[updated.length - 1] = {
+                  role: "assistant",
+                  content: "Your app is ready! Check the preview. You can keep describing changes below.",
+                };
+              }
+            }
+            return updated;
+          });
+
+          // Force reload iframe
+          if (iframeRef.current && previewUrl) {
+            iframeRef.current.src = previewUrl;
+          }
+
+          setFileRefresh((n) => n + 1);
+          saveProject();
+        } catch (err) {
+          appendTerminal(`❌ Sandbox update failed: ${err instanceof Error ? err.message : "Unknown error"}\n`);
+          setPhase("error", err instanceof Error ? err.message : "Sandbox update failed");
+        }
       }
-    }
-
-    if (allErrors.length > 0 && attempt < MAX_RETRIES) {
-      incrementRetry();
-      // Debug-first: collect console errors from the preview iframe
-      const consoleErrors = getConsoleErrors();
-      const errorMsg = formatErrorForRetry(allErrors, consoleErrors);
-      clearConsoleLogs();
-      appendTerminal(`\n⚠️ Error (attempt ${attempt + 1}/${MAX_RETRIES}). Auto-fixing...\n`);
-
-      // On retry, kill old dev server and force a full restart
-      await killDevServer();
-      setDevServerRunning(false);
-
-      const retryMessages: Message[] = [
-        ...chatMessages,
-        { role: "assistant", content: "(previous attempt had errors)" },
-        { role: "user", content: errorMsg },
-      ];
+    } catch (err) {
+      console.error("Send error:", err);
+      setPhase("error", err instanceof Error ? err.message : "Unknown error");
+      setIsThinking(false);
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: `🔧 Fixing error (attempt ${attempt + 2}/${MAX_RETRIES})...` },
+        { role: "assistant", content: "Sorry, something went wrong. Please try again." },
       ]);
-      setPhase("streaming");
-      const { ops: fixOps } = await streamChat(retryMessages);
-      if (fixOps.length > 0) {
-        await executeWithRetry(wc, fixOps, retryMessages, attempt + 1);
-      } else {
-        setPhase("error", "AI could not fix the error");
-      }
-    } else if (allErrors.length > 0) {
-      setPhase("error", "Max retries reached");
     }
   };
 
@@ -608,12 +432,10 @@ export default function WorkspacePage() {
   }, [phase]);
 
   const handleDownload = async () => {
-    const wc = wcRef.current;
-    if (!wc) return;
+    if (!savedFiles) return;
     try {
-      const files = await readProjectFiles(wc);
       const zip = new JSZip();
-      for (const [path, content] of Object.entries(files)) {
+      for (const [path, content] of Object.entries(savedFiles)) {
         zip.file(path, content);
       }
       const blob = await zip.generateAsync({ type: "blob" });
@@ -629,15 +451,13 @@ export default function WorkspacePage() {
   };
 
   const handleDeploy = async () => {
-    const wc = wcRef.current;
-    if (!wc || isDeploying) return;
+    if (!savedFiles || isDeploying) return;
     setIsDeploying(true);
     try {
-      const files = await readProjectFiles(wc);
       const res = await fetch("/api/deploy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ files, projectName: projectId }),
+        body: JSON.stringify({ files: savedFiles, projectName: projectId }),
       });
       const data = await res.json();
       if (data.url) {
@@ -733,7 +553,7 @@ export default function WorkspacePage() {
             </span>
           )}
 
-          <span className={cn("w-2 h-2 rounded-full", wcReady ? "bg-green-500" : "bg-amber-400 animate-pulse")} />
+          <span className={cn("w-2 h-2 rounded-full", sandboxReady ? "bg-green-500" : "bg-amber-400 animate-pulse")} />
         </div>
       </header>
 
@@ -834,7 +654,7 @@ export default function WorkspacePage() {
             <ChatInput
               onSend={(text) => sendMessage(text)}
               isBusy={isBusy}
-              wcReady={wcReady}
+              wcReady={sandboxReady}
               hasMessages={messages.length > 0}
               value={input}
               onChange={setInput}
@@ -931,7 +751,7 @@ export default function WorkspacePage() {
                     <span className="text-2xl">🖥️</span>
                   </div>
                   <div className="text-sm text-gray-400">
-                    {wcReady ? "Your app preview will appear here" : "Setting up sandbox..."}
+                    Your app preview will appear here
                   </div>
                 </div>
               )}
@@ -969,7 +789,7 @@ export default function WorkspacePage() {
                     )}
 
                     {retryCount > 0 && (
-                      <div className="mt-3 text-xs text-gray-400">🔧 Auto-fix attempt {retryCount}/{MAX_RETRIES}</div>
+                      <div className="mt-3 text-xs text-gray-400">🔧 Auto-fix attempt {retryCount}/5</div>
                     )}
                   </div>
                 </div>
@@ -978,7 +798,7 @@ export default function WorkspacePage() {
 
             {/* Files */}
             <div className={cn("absolute inset-0", rightTab !== "files" && "hidden")}>
-              <FileExplorer wc={wcRef.current} refreshTrigger={fileRefresh} />
+              <FileExplorer sandboxId={sandboxId} refreshTrigger={fileRefresh} />
             </div>
 
             {/* Console */}

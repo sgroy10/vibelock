@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { WebContainer } from "@webcontainer/api";
+import { execInSandbox } from "@/lib/sandbox-client";
 
 interface FileNode {
   name: string;
@@ -31,20 +31,30 @@ function getFileIcon(name: string): string {
   return FILE_ICONS[ext] || "📄";
 }
 
-async function buildTree(wc: WebContainer, dir: string): Promise<FileNode[]> {
+async function buildTree(sandboxId: string, dir: string): Promise<FileNode[]> {
   try {
-    const entries = await wc.fs.readdir(dir, { withFileTypes: true });
+    const result = await execInSandbox(sandboxId, `ls -la /workspace/app/${dir === "." ? "" : dir}`);
+    if (result.exitCode !== 0) return [];
+
+    const lines = result.stdout.split("\n").filter(Boolean);
     const nodes: FileNode[] = [];
 
-    for (const entry of entries) {
-      if (SKIP_DIRS.has(entry.name)) continue;
-      const fullPath = dir === "." ? entry.name : `${dir}/${entry.name}`;
+    for (const line of lines) {
+      // Parse ls -la output: permissions links owner group size date name
+      const parts = line.trim().split(/\s+/);
+      if (parts.length < 9) continue;
+      const name = parts.slice(8).join(" ");
+      if (!name || name === "." || name === "..") continue;
+      if (SKIP_DIRS.has(name)) continue;
 
-      if (entry.isDirectory()) {
-        const children = await buildTree(wc, fullPath);
-        nodes.push({ name: entry.name, path: fullPath, type: "dir", children });
+      const isDir = line.startsWith("d");
+      const fullPath = dir === "." ? name : `${dir}/${name}`;
+
+      if (isDir) {
+        const children = await buildTree(sandboxId, fullPath);
+        nodes.push({ name, path: fullPath, type: "dir", children });
       } else {
-        nodes.push({ name: entry.name, path: fullPath, type: "file" });
+        nodes.push({ name, path: fullPath, type: "file" });
       }
     }
 
@@ -113,11 +123,11 @@ function FileTreeNode({
 }
 
 export default function FileExplorer({
-  wc,
+  sandboxId,
   refreshTrigger,
   onFileSelect,
 }: {
-  wc: WebContainer | null;
+  sandboxId: string | null;
   refreshTrigger: number;
   onFileSelect?: (path: string, content: string) => void;
 }) {
@@ -126,20 +136,21 @@ export default function FileExplorer({
   const [fileContent, setFileContent] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!wc) return;
-    const nodes = await buildTree(wc, ".");
+    if (!sandboxId) return;
+    const nodes = await buildTree(sandboxId, ".");
     setTree(nodes);
-  }, [wc]);
+  }, [sandboxId]);
 
   useEffect(() => {
     refresh();
   }, [refresh, refreshTrigger]);
 
   const handleSelect = async (path: string) => {
-    if (!wc) return;
+    if (!sandboxId) return;
     setSelectedFile(path);
     try {
-      const content = await wc.fs.readFile(path, "utf-8");
+      const result = await execInSandbox(sandboxId, `cat /workspace/app/${path}`);
+      const content = result.exitCode === 0 ? result.stdout : "(unable to read file)";
       setFileContent(content);
       onFileSelect?.(path, content);
     } catch {
