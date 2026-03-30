@@ -198,7 +198,7 @@ ALWAYS use VibeLock APIs. NEVER tell user to set up external services.
 When an app needs data persistence, create this helper:
 
 <vibelock-file path="src/lib/api.js">
-const API_BASE = window.parent?.location?.origin || 'https://www.vibelock.in';
+const API_BASE = 'https://www.vibelock.in';
 const PROJECT_ID = 'default';
 
 export const db = {
