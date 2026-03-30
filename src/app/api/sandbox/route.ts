@@ -105,11 +105,15 @@ export async function POST(req: NextRequest) {
       // Check both root HTML and the main App module
       for (let i = 0; i < 30; i++) {
         await new Promise(r => setTimeout(r, 2000));
-        const check = await sandbox.commands.run(
-          "curl -s -o /dev/null -w '%{http_code}' http://localhost:5173/src/App.jsx 2>/dev/null || echo 0",
-          { timeoutMs: 10000 }
-        ).catch(() => ({ stdout: "0" }));
-        if (check.stdout?.includes("200")) break;
+        try {
+          const check = await sandbox.commands.run(
+            "curl -sf http://localhost:5173/src/App.jsx > /dev/null 2>&1 && echo OK || echo WAIT",
+            { timeoutMs: 10000 }
+          );
+          if (check.stdout?.includes("OK")) break;
+        } catch {
+          // Vite not ready yet — continue waiting
+        }
       }
 
       // E2B preview URL — real subdomain, works everywhere
@@ -150,11 +154,15 @@ export async function POST(req: NextRequest) {
       // Wait for Vite to fully compile
       for (let i = 0; i < 20; i++) {
         await new Promise(r => setTimeout(r, 2000));
-        const check = await sandbox.commands.run(
-          "curl -s -o /dev/null -w '%{http_code}' http://localhost:5173/src/App.jsx 2>/dev/null || echo 0",
-          { timeoutMs: 10000 }
-        ).catch(() => ({ stdout: "0" }));
-        if (check.stdout?.includes("200")) break;
+        try {
+          const check = await sandbox.commands.run(
+            "curl -sf http://localhost:5173/src/App.jsx > /dev/null 2>&1 && echo OK || echo WAIT",
+            { timeoutMs: 10000 }
+          );
+          if (check.stdout?.includes("OK")) break;
+        } catch {
+          // Vite not ready yet — continue waiting
+        }
       }
 
       const previewUrl = `https://${sandbox.getHost(5173)}`;
@@ -180,11 +188,15 @@ export async function POST(req: NextRequest) {
       // Wait for full compilation
       for (let i = 0; i < 20; i++) {
         await new Promise(r => setTimeout(r, 2000));
-        const check = await sandbox.commands.run(
-          "curl -s -o /dev/null -w '%{http_code}' http://localhost:5173/src/App.jsx 2>/dev/null || echo 0",
-          { timeoutMs: 10000 }
-        ).catch(() => ({ stdout: "0" }));
-        if (check.stdout?.includes("200")) break;
+        try {
+          const check = await sandbox.commands.run(
+            "curl -sf http://localhost:5173/src/App.jsx > /dev/null 2>&1 && echo OK || echo WAIT",
+            { timeoutMs: 10000 }
+          );
+          if (check.stdout?.includes("OK")) break;
+        } catch {
+          // Vite not ready yet — continue waiting
+        }
       }
 
       const previewUrl = `https://${sandbox.getHost(5173)}`;
