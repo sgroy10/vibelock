@@ -98,7 +98,8 @@ export async function POST(req: NextRequest) {
       }
 
       // Start Vite dev server in background using nohup
-      await sandbox.commands.run("nohup npx vite --host 0.0.0.0 --port 5173 > /tmp/vite.log 2>&1 &", { timeoutMs: 5000 }).catch(() => {});
+      // Start Vite in background — timeout is EXPECTED (bg process never exits)
+      sandbox.commands.run("npx vite --host 0.0.0.0 --port 5173", { timeoutMs: 600000 }).catch(() => {});
 
       // Wait for Vite to FULLY compile (not just serve HTML shell)
       // Check both root HTML and the main App module
@@ -143,7 +144,8 @@ export async function POST(req: NextRequest) {
 
       // Auto-restart Vite after writing files
       await sandbox.commands.run("pkill -f vite 2>/dev/null; sleep 1", { timeoutMs: 10000 }).catch(() => {});
-      await sandbox.commands.run("nohup npx vite --host 0.0.0.0 --port 5173 > /tmp/vite.log 2>&1 &", { timeoutMs: 5000 }).catch(() => {});
+      // Start Vite in background — timeout is EXPECTED (bg process never exits)
+      sandbox.commands.run("npx vite --host 0.0.0.0 --port 5173", { timeoutMs: 600000 }).catch(() => {});
 
       // Wait for Vite to fully compile
       for (let i = 0; i < 20; i++) {
@@ -172,7 +174,8 @@ export async function POST(req: NextRequest) {
 
       // Kill old Vite and restart
       await sandbox.commands.run("pkill -f vite 2>/dev/null; sleep 1", { timeoutMs: 10000 }).catch(() => {});
-      await sandbox.commands.run("nohup npx vite --host 0.0.0.0 --port 5173 > /tmp/vite.log 2>&1 &", { timeoutMs: 5000 }).catch(() => {});
+      // Start Vite in background — timeout is EXPECTED (bg process never exits)
+      sandbox.commands.run("npx vite --host 0.0.0.0 --port 5173", { timeoutMs: 600000 }).catch(() => {});
 
       // Wait for full compilation
       for (let i = 0; i < 20; i++) {
