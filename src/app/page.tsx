@@ -62,7 +62,9 @@ export default function Home() {
     const text = prompt || input;
     if (!text.trim()) return;
     const encoded = encodeURIComponent(text.trim());
-    router.push(`/workspace/new?prompt=${encoded}`);
+    // Generate a unique project ID so each new project gets its own workspace
+    const id = `p_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    router.push(`/workspace/${id}?prompt=${encoded}`);
   };
 
   return (

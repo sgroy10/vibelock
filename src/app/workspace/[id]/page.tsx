@@ -184,7 +184,15 @@ export default function WorkspacePage() {
   }, []);
 
   // Load saved project on mount — no WebContainer boot needed
+  // SKIP loading if there's an initialPrompt — user wants a fresh project
   useEffect(() => {
+    if (initialPrompt) {
+      // Fresh project — don't load old data
+      setPhase("idle");
+      setProjectLoaded(true);
+      return;
+    }
+
     loadProject().then(async (saved) => {
       if (saved && saved.messages && saved.messages.length > 0) {
         setMessages(saved.messages);
