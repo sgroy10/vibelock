@@ -1,46 +1,50 @@
 /**
- * Generate smart next-step suggestions based on what files exist in the project.
- * Returns max 4 suggestions.
+ * Generate smart, context-aware next-step suggestions based on project files.
+ * Returns max 3 suggestions — focused and actionable.
  */
 export function generateSuggestions(files: string[]): string[] {
   const suggestions: string[] = [];
-  const fileLower = files.map((f) => f.toLowerCase());
-  const allContent = fileLower.join(" ");
+  const allPaths = files.map((f) => f.toLowerCase()).join(" ");
 
-  const hasMatch = (keywords: string[]) =>
-    keywords.some((kw) => allContent.includes(kw));
+  const has = (keywords: string[]) =>
+    keywords.some((kw) => allPaths.includes(kw));
 
-  if (!hasMatch(["auth", "login", "signin", "sign-in", "signup", "sign-up"])) {
-    suggestions.push("Add user authentication");
+  // Core missing features — highest priority
+  if (!has(["auth", "login", "signin", "signup"])) {
+    suggestions.push("Add user authentication with login & signup pages");
   }
 
-  if (!hasMatch(["pricing", "plans", "subscription"])) {
-    suggestions.push("Create a pricing page");
+  if (!has(["pricing", "plans", "subscription", "billing"])) {
+    suggestions.push("Add a pricing page with plan comparison");
   }
 
-  if (!hasMatch(["footer"])) {
-    suggestions.push("Add a footer with social links");
+  if (!has(["dashboard", "analytics", "stats", "metric"])) {
+    suggestions.push("Add an analytics dashboard with charts");
   }
 
-  if (!hasMatch(["404", "not-found", "notfound"])) {
-    suggestions.push("Add a 404 page");
+  if (!has(["settings", "profile", "account"])) {
+    suggestions.push("Add user settings and profile page");
   }
 
-  if (!hasMatch(["dark-mode", "darkmode", "theme-toggle", "themetoggle", "dark"])) {
-    suggestions.push("Add dark mode toggle");
+  if (!has(["contact", "form"])) {
+    suggestions.push("Add a contact form with validation");
   }
 
-  if (!hasMatch(["review", "testimonial", "feedback"])) {
-    suggestions.push("Add customer reviews");
+  if (!has(["about"])) {
+    suggestions.push("Add an about page with team section");
   }
 
-  if (!hasMatch(["contact", "contact-form", "contactform"])) {
-    suggestions.push("Add a contact form");
+  if (!has(["search"])) {
+    suggestions.push("Add search with filters");
   }
 
-  if (!hasMatch(["search"])) {
-    suggestions.push("Add search functionality");
+  if (!has(["notification", "toast"])) {
+    suggestions.push("Add toast notifications");
   }
 
-  return suggestions.slice(0, 4);
+  if (!has(["mobile", "responsive"])) {
+    suggestions.push("Improve mobile responsiveness");
+  }
+
+  return suggestions.slice(0, 3);
 }

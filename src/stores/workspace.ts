@@ -22,6 +22,7 @@ interface WorkspaceState {
   currentFiles: string[];
   suggestions: string[];
   buildComplete: boolean;
+  planTasks: string[];
 
   // Actions
   setPhase: (phase: BuildPhase, detail?: string) => void;
@@ -37,6 +38,7 @@ interface WorkspaceState {
   setCurrentFiles: (files: string[]) => void;
   setSuggestions: (suggestions: string[]) => void;
   setBuildComplete: (v: boolean) => void;
+  setPlanTasks: (tasks: string[]) => void;
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set) => ({
@@ -50,6 +52,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   currentFiles: [],
   suggestions: [],
   buildComplete: false,
+  planTasks: [],
 
   setPhase: (phase, detail = "") => set({ phase, phaseDetail: detail }),
   setPreviewUrl: (url) => set({ previewUrl: url }),
@@ -74,10 +77,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       currentFiles: [],
       suggestions: [],
       buildComplete: false,
+      planTasks: [],
     }),
 
   setIsThinking: (v) => set({ isThinking: v }),
   setCurrentFiles: (files) => set({ currentFiles: files }),
   setSuggestions: (suggestions) => set({ suggestions }),
   setBuildComplete: (v) => set({ buildComplete: v }),
+  setPlanTasks: (tasks) => set({ planTasks: tasks }),
 }));

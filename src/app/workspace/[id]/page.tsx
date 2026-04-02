@@ -20,8 +20,21 @@ import ChatInput from "@/components/workspace/ChatInput";
 import ThinkingIndicator from "@/components/workspace/ThinkingIndicator";
 import ProgressCard from "@/components/workspace/ProgressCard";
 import ProjectSidebar from "@/components/workspace/ProjectSidebar";
-import { startConsoleCapture } from "@/lib/console-capture";
+import { startConsoleCapture, getConsoleErrors, clearConsoleLogs } from "@/lib/console-capture";
 import { useWorkspaceStore } from "@/stores/workspace";
+import { VISUAL_SELECT_INJECT_SCRIPT, VISUAL_SELECT_REMOVE_SCRIPT, type ElementSelection } from "@/lib/visual-select";
+
+/** Extract task items from AI plan output (- [ ] Task name) */
+function extractPlanTasks(text: string): string[] {
+  const taskRegex = /- \[[ x]?\]\s+(.+?)(?:\n|$)/g;
+  const tasks: string[] = [];
+  let match;
+  while ((match = taskRegex.exec(text)) !== null) {
+    const task = match[1].trim();
+    if (task.length > 3 && task.length < 100) tasks.push(task);
+  }
+  return tasks;
+}
 
 /** Strip vibelock tags AND any code content from display text */
 function cleanDisplay(text: string): string {
@@ -68,6 +81,8 @@ export default function WorkspacePage() {
   const [isDeploying, setIsDeploying] = useState(false);
   const [deployUrl, setDeployUrl] = useState<string | null>(null);
   const [deviceFrame, setDeviceFrame] = useState<"desktop" | "tablet" | "mobile">("desktop");
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedElement, setSelectedElement] = useState<ElementSelection | null>(null);
   const secrets = useSecretsStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -92,10 +107,12 @@ export default function WorkspacePage() {
     currentFiles,
     suggestions,
     buildComplete,
+    planTasks,
     setIsThinking,
     setCurrentFiles,
     setSuggestions,
     setBuildComplete,
+    setPlanTasks,
   } = useWorkspaceStore();
 
   const isBusy = phase !== "idle" && phase !== "ready" && phase !== "error";
@@ -140,7 +157,30 @@ export default function WorkspacePage() {
   // Start listening for console errors from preview iframe
   useEffect(() => {
     startConsoleCapture();
-    return () => {};
+
+    // Listen for visual element selection from preview iframe
+    const handleSelect = (event: MessageEvent) => {
+      if (event.data?.type === "vibelock-element-select") {
+        const selection: ElementSelection = {
+          element: event.data.element,
+          component: event.data.component,
+          path: event.data.path,
+        };
+        setSelectedElement(selection);
+        // Auto-focus the input with context
+        const desc = selection.element.text
+          ? `"${selection.element.text.slice(0, 40)}"`
+          : `<${selection.element.tag}>`;
+        setInput(`Change the ${desc} element: `);
+        // Exit select mode after selection
+        setSelectMode(false);
+        if (iframeRef.current?.contentWindow) {
+          iframeRef.current.contentWindow.postMessage({ type: "vibelock-run-script", script: VISUAL_SELECT_REMOVE_SCRIPT }, "*");
+        }
+      }
+    };
+    window.addEventListener("message", handleSelect);
+    return () => window.removeEventListener("message", handleSelect);
   }, []);
 
   // Load saved project on mount — no WebContainer boot needed
@@ -241,6 +281,11 @@ export default function WorkspacePage() {
         }
 
         const displayText = cleanDisplay(fullText);
+
+        // Extract plan tasks from AI response during streaming
+        const tasks = extractPlanTasks(fullText);
+        if (tasks.length > 0) setPlanTasks(tasks);
+
         setMessages((prev) => {
           const updated = [...prev];
           updated[updated.length - 1] = {
@@ -285,7 +330,20 @@ export default function WorkspacePage() {
       setConstraints((prev) => [...prev, ...newLocks]);
     }
 
-    const userMsg: Message = { role: "user", content: content.trim() };
+    // Include selected element context if available
+    let messageContent = content.trim();
+    if (selectedElement) {
+      const el = selectedElement.element;
+      const comp = selectedElement.component;
+      messageContent += `\n\n[VISUAL SELECTION CONTEXT - User clicked this element in the preview:]
+Element: <${el.tag}> with classes "${el.classes}" containing text "${el.text}"
+Component path: ${selectedElement.path}
+Parent component: <${comp.tag}> (${comp.width}x${comp.height}px)
+Apply the requested change to this specific element. Only modify the file containing this element.`;
+      setSelectedElement(null);
+    }
+
+    const userMsg: Message = { role: "user", content: messageContent };
     const updatedMessages = [...messages, userMsg];
     setMessages(updatedMessages);
     setInput("");
@@ -295,6 +353,7 @@ export default function WorkspacePage() {
     setIsThinking(true);
     setBuildComplete(false);
     setSuggestions([]);
+    setPlanTasks([]);
 
     try {
       const { ops } = await streamChat(updatedMessages);
@@ -418,6 +477,54 @@ export default function WorkspacePage() {
           appendTerminal(`❌ Sandbox update failed: ${err instanceof Error ? err.message : "Unknown error"}\n`);
           setPhase("error", err instanceof Error ? err.message : "Sandbox update failed");
         }
+      }
+
+      // Auto-fix: after build completes, check for console errors and retry
+      if (phase === "ready" || buildComplete) {
+        setTimeout(async () => {
+          const consoleErrors = getConsoleErrors();
+          if (consoleErrors && retryCount < 3) {
+            clearConsoleLogs();
+            incrementRetry();
+            appendTerminal(`\n🔧 Detected errors in preview, auto-fixing (attempt ${retryCount + 1}/3)...\n`);
+            appendTerminal(`Errors: ${consoleErrors.slice(0, 200)}\n`);
+
+            // Build context for fix
+            const errorContext = Object.entries(newSavedFiles)
+              .filter(([p]) => p.startsWith("src/"))
+              .map(([p, c]) => `--- ${p} ---\n${c}`)
+              .join("\n\n");
+
+            const fixMessages: Message[] = [
+              ...updatedMessages,
+              {
+                role: "assistant",
+                content: messages[messages.length - 1]?.content || "",
+              },
+              {
+                role: "user",
+                content: `The app has errors in the browser console. Fix them:\n\n${consoleErrors}\n\nCurrent files:\n${errorContext}\n\nFix ONLY the broken files. Output complete file content.`,
+              },
+            ];
+
+            try {
+              const { ops: fixOps } = await streamChat(fixMessages);
+              const fixFileOps = fixOps.filter((o): o is FileOp => o.type === "file");
+              if (fixFileOps.length > 0) {
+                const fixFiles = fixFileOps.map((op) => ({ path: op.path, content: op.content }));
+                for (const f of fixFiles) newSavedFiles[f.path] = f.content;
+                setSavedFiles({ ...newSavedFiles });
+                await writeToSandbox(sandboxId!, fixFiles);
+                appendTerminal(`✅ Auto-fix applied (${fixFiles.length} files)\n`);
+                if (iframeRef.current && previewUrl) {
+                  setTimeout(() => { iframeRef.current!.src = previewUrl!; }, 3000);
+                }
+              }
+            } catch (fixErr) {
+              appendTerminal(`⚠️ Auto-fix failed: ${fixErr instanceof Error ? fixErr.message : "Unknown"}\n`);
+            }
+          }
+        }, 8000); // Wait 8s for app to load and errors to appear
       }
     } catch (err) {
       console.error("Send error:", err);
@@ -604,6 +711,7 @@ export default function WorkspacePage() {
                   detail={phaseDetail}
                   retryCount={retryCount}
                   terminalLines={terminalOutput}
+                  tasks={planTasks}
                 />
               )}
 
@@ -625,6 +733,22 @@ export default function WorkspacePage() {
                 <input placeholder="Stripe Key" type="password" value={secrets.stripeKey} onChange={(e) => secrets.setStripeKey(e.target.value)} className="px-2 py-1 rounded border border-gray-200 text-gray-900 bg-white outline-none focus:ring-1 focus:ring-orange-500 text-[11px]" />
               </div>
               <div className="text-gray-400 text-[10px]">Stored locally, never sent to our servers.</div>
+            </div>
+          )}
+
+          {/* Selected element indicator */}
+          {selectedElement && (
+            <div className="px-3 py-1.5 border-t border-orange-100 bg-orange-50/50 flex items-center gap-2">
+              <span className="text-[11px] text-orange-600 font-medium">
+                🎯 Selected: &lt;{selectedElement.element.tag}&gt;
+                {selectedElement.element.text ? ` "${selectedElement.element.text.slice(0, 25)}..."` : ""}
+              </span>
+              <button
+                onClick={() => { setSelectedElement(null); setInput(""); }}
+                className="text-[10px] text-orange-400 hover:text-orange-600 ml-auto"
+              >
+                ✕ Clear
+              </button>
             </div>
           )}
 
@@ -691,9 +815,33 @@ export default function WorkspacePage() {
               </button>
             ))}
 
-            {/* Device frame toggles — only show on preview tab */}
+            {/* Device frame toggles + Select mode — only show on preview tab */}
             {rightTab === "preview" && previewUrl && (
               <div className="ml-auto flex items-center gap-1 pr-2">
+                {/* Visual select toggle */}
+                <button
+                  onClick={() => {
+                    const newMode = !selectMode;
+                    setSelectMode(newMode);
+                    if (iframeRef.current?.contentWindow) {
+                      iframeRef.current.contentWindow.postMessage({
+                        type: "vibelock-run-script",
+                        script: newMode ? VISUAL_SELECT_INJECT_SCRIPT : VISUAL_SELECT_REMOVE_SCRIPT,
+                      }, "*");
+                    }
+                  }}
+                  className={cn(
+                    "px-2 py-1 rounded text-[11px] font-medium transition-colors",
+                    selectMode
+                      ? "bg-orange-100 text-orange-700 border border-orange-200"
+                      : "text-gray-400 hover:text-gray-600 hover:bg-gray-50"
+                  )}
+                >
+                  {selectMode ? "🎯 Selecting..." : "🎯 Select"}
+                </button>
+
+                <div className="w-px h-4 bg-gray-200 mx-1" />
+
                 {([
                   { key: "desktop", icon: "🖥", w: "100%" },
                   { key: "tablet", icon: "📱", w: "768px" },
